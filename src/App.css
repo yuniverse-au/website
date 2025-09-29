@@ -13,12 +13,31 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
   height: 100%;
 }
 
+.logo {
+  position: absolute;
+  top: 5vh;
+  left: 5vw;
+  width: 50vw;
+  height: auto;
+  max-width: 100%;
+
+  filter: grayscale(1) contrast(2000%) brightness(200%);
+  mix-blend-mode: difference;
+  fill: #fff;
+  pointer-events: none;
+  user-select: none;
+  z-index: 2;
+}
+
 .title {
   position: absolute;
   top: 10vh;
   left: 10vw;
   margin: 0;
-  color: #000000;
+  color: #fff;
+  mix-blend-mode: difference;
+  filter: grayscale(1) contrast(2000%) brightness(200%);
+  will-change: filter;
   font-size: clamp(3rem, 10vw, 7rem);
   font-weight: 600;
   line-height: .95;

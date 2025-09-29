@@ -114,8 +114,8 @@ const float bayerMatrix8x8[64] = float[64](
 );
 
 vec3 dither(vec2 uv, vec3 color) {
-  float whiteCutoff    = 0.4;  // higher = fewer light pixels promoted
-  float thresholdShift = -1.6; // negative = a few more light speckles
+  float whiteCutoff    = 0.7;  // higher = fewer light pixels promoted
+  float thresholdShift = -0.4; // negative = a few more light speckles
   float whiteLevel     = 0.7;  // the "white" output becomes grey-ish
 
   color = clamp(color, 0.0, 1.0);
@@ -131,17 +131,11 @@ vec3 dither(vec2 uv, vec3 color) {
   float stepSize = 1.0 / q;
   float localCut = clamp(whiteCutoff - threshold * stepSize, 0.0, 1.0);
 
-  // Binary mask: 0 = black, 1 = "white" (we'll remap white to grey)
   vec3 mask = step(vec3(localCut), color);
 
   // Map 0 -> black, 1 -> grey (whiteLevel)
   return mix(vec3(0.0), vec3(whiteLevel), mask);
 }
-
-
-
-
-
 
 void mainImage(in vec4 inputColor, in vec2 uv, out vec4 outputColor) {
   vec2 normalizedPixelSize = pixelSize / resolution;
