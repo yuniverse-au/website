@@ -1,5 +1,4 @@
-// App.jsx
-import React from "react";
+import React, { useEffect } from "react";
 import Dither from "./Dither";
 import "./App.css";
 
@@ -8,8 +7,51 @@ export default function App() {
   const colorSteps = isMobile ? 4 : 9;
   const waveColor = isMobile ? [0.3, 0.3, 0.3] : [0.2, 0.2, 0.2];
 
+  useEffect(() => {
+  const real = document.getElementById("site-logo");
+  const ghostHost = document.querySelector(".preload-ghost");
+  if (!real || !ghostHost) return;
+
+  const ghost = real.cloneNode(true);
+  ghost.removeAttribute("id");
+  ghost.setAttribute("class", "preload-logo-svg");
+  ghost.style.color = "#000";
+  ghost.style.filter = "none";
+  ghost.style.mixBlendMode = "normal";
+  ghostHost.innerHTML = "";
+  ghostHost.appendChild(ghost);
+
+  const place = () => {
+    const r = real.getBoundingClientRect();
+    ghostHost.style.position = "fixed";
+    ghostHost.style.transform = `translate(${r.left}px, ${r.top}px)`;
+    ghostHost.style.width = `${r.width}px`;
+    ghostHost.style.height = `${r.height}px`;
+  };
+
+  place();
+  const ro = new ResizeObserver(place);
+  ro.observe(document.body);
+  window.addEventListener("resize", place, { passive: true });
+  window.addEventListener("orientationchange", place, { passive: true });
+  window.addEventListener("scroll", place, { passive: true });
+  const t = setTimeout(place, 0);
+
+  return () => {
+    ro.disconnect();
+    window.removeEventListener("resize", place);
+    window.removeEventListener("orientationchange", place);
+    window.removeEventListener("scroll", place);
+    clearTimeout(t);
+  };
+}, []);
+
   return (
     <div className="app">
+      <div className="preload-reveal" aria-hidden="true">
+        <div className="preload-ghost" />
+      </div>
+
       <div className="layer">
         <Dither
           waveColor={waveColor}
@@ -24,6 +66,7 @@ export default function App() {
       </div>
 
       <svg
+        id="site-logo"
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 631.7 145.6"
         xml:space="preserve"

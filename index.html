@@ -5,9 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>the yuniverse.</title>
     <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+
+    <meta name="color-scheme" content="dark">
+
+    <style>
+      html, body { background:#000 !important; }
+      #root { background:#000; min-height:100vh; }
+    </style>
+
+    <script>
+      document.documentElement.style.background = '#000';
+      document.body.style.background = '#000';
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root" style="background:#000; min-height:100vh;"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

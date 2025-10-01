@@ -116,7 +116,7 @@ const float bayerMatrix8x8[64] = float[64](
 vec3 dither(vec2 uv, vec3 color) {
   float whiteCutoff    = 0.7;  // higher = fewer light pixels promoted
   float thresholdShift = -0.4; // negative = a few more light speckles
-  float whiteLevel     = 0.7;  // the "white" output becomes grey-ish
+  float whiteLevel     = 0.6;  // the "white" output becomes grey-ish
 
   color = clamp(color, 0.0, 1.0);
 
@@ -403,6 +403,10 @@ export default function Dither({
       camera={{ position: [0, 0, 6] }}
       dpr={window.devicePixelRatio}
       gl={{ antialias: true, preserveDrawingBuffer: true }}
+      onCreated={({ gl }) => {
+        gl.setClearColor(0x000000, 1);
+      }}
+      style={{ background: '#000' }}
     >
       <DitheredWaves
         waveSpeed={waveSpeed}
