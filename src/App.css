@@ -17,7 +17,6 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
   position: absolute;
   top: 5vh;
   left: 5vw;
-  width: 50vw;
   height: auto;
   max-width: 100%;
 
@@ -67,6 +66,32 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
   .preload-reveal { animation: none; background: transparent; }
 }
 
+.legal,
+.small-message {
+  position: fixed;
+  right: 5vw;
+  bottom: calc(5vh + env(safe-area-inset-bottom));
+  max-width: min(92vw, 65ch);
+  pointer-events: none;
+  user-select: none;
+  line-height: 1.25;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.legal {
+  color: #000;
+  opacity: 50%;
+  font-weight: 400;
+  font-size: clamp(0.7rem, 0.35rem + 1vw, 0.9rem);
+}
+
+.small-message {
+  color: #000;
+  font-weight: 400;
+  font-size: clamp(1rem, 0.5rem + 1.2vw, 1.2rem);
+}
+
 .title {
   position: absolute;
   top: 10vh;
@@ -78,19 +103,6 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
   will-change: filter;
   font-size: clamp(3rem, 10vw, 7rem);
   font-weight: 600;
-  line-height: .95;
-  pointer-events: none;
-  user-select: none;
-}
-
-.small-message {
-  position: absolute;
-  bottom: 5vh;
-  right: 5vw;
-  margin: 0;
-  color: #000000;
-  font-size: clamp(1rem, 3vw, 2rem);
-  font-weight: 400;
   line-height: .95;
   pointer-events: none;
   user-select: none;

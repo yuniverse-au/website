@@ -4,7 +4,7 @@ import "./App.css";
 
 export default function App() {
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  const colorSteps = isMobile ? 4 : 9;
+  const colorSteps = isMobile ? 8 : 9;
   const waveColor = isMobile ? [0.3, 0.3, 0.3] : [0.2, 0.2, 0.2];
 
   useEffect(() => {
@@ -50,6 +50,7 @@ export default function App() {
     <div className="app">
       <div className="preload-reveal" aria-hidden="true">
         <div className="preload-ghost" />
+        <h4 className="legal">© 2025 Yuniverse Australia. All rights reserved.</h4>
       </div>
 
       <div className="layer">
@@ -72,6 +73,7 @@ export default function App() {
         xml:space="preserve"
         fill="currentColor"
         className="logo"
+        style={{ width: isMobile ? "70vw" : "40vw" }}
         // Logo Designer: ヨギ
       >
         <path d="M627.2 145.6H457.4c-2.4 0-4.4-2-4.4-4.4v-37.3c0-1.6.9-3.1 2.3-3.9s3.2-.7 4.5.2l16.4 10.8 35.3-23.3c.7-.5 1.6-.7 2.4-.7h23l-25.4-16.7c-1.2-.8-2-2.2-2-3.7V4.4c0-2.4 2-4.4 4.4-4.4h37.7c1.2 0 2.3.5 3.1 1.3s1.3 2 1.3 3.1v37.3c0 2.4-2 4.4-4.4 4.4s-4.4-2-4.4-4.4V8.8h-28.9v55.3l35.8 23.5c1.6 1.1 2.4 3.1 1.8 5s-2.3 3.2-4.2 3.2h-36.4L478.7 120c-1.5 1-3.4 1-4.9 0l-12-7.9v24.7h150.7L587.1 120c-2-1.3-2.6-4.1-1.3-6.1s4.1-2.6 6.1-1.3l37.7 24.9c1.6 1.1 2.4 3.1 1.8 5-.5 1.8-2.2 3.1-4.2 3.1m-452.9 0h-37.7c-2.4 0-4.4-2-4.4-4.4s2-4.4 4.4-4.4h23L96.4 95.1c-1.2-.8-2-2.2-2-3.7s.7-2.9 2-3.7L216.2 8.8h-21.7l-131 86.3c-1.5 1-3.4 1-4.9 0L2 57.8c-1.2-.8-2-2.2-2-3.7s.7-2.9 2-3.7L20.9 38c2-1.3 4.8-.8 6.1 1.3 1.3 2 .8 4.8-1.3 6.1l-13.3 8.7 48.6 32L190.7.7c.7-.5 1.6-.7 2.4-.7h37.7c2 0 3.7 1.3 4.2 3.2.6 1.9-.2 3.9-1.8 5L106.8 91.4l69.9 46c1.6 1.1 2.4 3.1 1.8 5-.5 1.9-2.3 3.2-4.2 3.2" />
