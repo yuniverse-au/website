@@ -70,7 +70,6 @@ export default function App() {
         id="site-logo"
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 631.7 145.6"
-        xml:space="preserve"
         fill="currentColor"
         className="logo"
         style={{ width: isMobile ? "70vw" : "40vw" }}
