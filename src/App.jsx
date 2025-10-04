@@ -4,8 +4,8 @@ import "./App.css";
 
 export default function App() {
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  const colorSteps = isMobile ? 8 : 9;
-  const waveColor = isMobile ? [0.3, 0.3, 0.3] : [0.2, 0.2, 0.2];
+  const colorSteps = isMobile ? 20 : 10;
+  const waveColor = isMobile ? [0.5, 0.5, 0.5] : [0.4, 0.4, 0.4];
 
   useEffect(() => {
   const real = document.getElementById("site-logo");
