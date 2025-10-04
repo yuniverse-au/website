@@ -19,13 +19,23 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
   left: 5vw;
   height: auto;
   max-width: 100%;
+  pointer-events: none;
+  user-select: none;
+}
 
+.logo-diff {
   filter: grayscale(1) contrast(2000%) brightness(200%);
   mix-blend-mode: difference;
   fill: #fff;
-  pointer-events: none;
-  user-select: none;
   z-index: 2;
+  will-change: filter;
+}
+
+.logo--solid {
+  fill: #000;
+  mix-blend-mode:overlay;
+  filter: none;
+  z-index: 3;
 }
 
 .preload-reveal {
