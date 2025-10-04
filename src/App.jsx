@@ -50,7 +50,7 @@ export default function App() {
     <div className="app">
       <div className="preload-reveal" aria-hidden="true">
         <div className="preload-ghost" />
-        <h4 className="legal">© 2025 Yuniverse Australia. All rights reserved.</h4>
+        <h3 className="legal">© 2025 Yuniverse Australia. All rights reserved.</h3>
       </div>
 
       <div className="layer">
@@ -100,7 +100,7 @@ export default function App() {
         <path d="M476 71.5c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5.1 2.5 2 4.5 4.5 4.5m0-44.8c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5m-75.1 0c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5m-.1 69.2c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s1.9 4.5 4.5 4.5m.1 17.5c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5.1 2.5 2 4.5 4.5 4.5m0 16.7c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5m-.1 15.5c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5.1 2.5 1.9 4.5 4.5 4.5M532.9 26.7c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5m0 15.8c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5m0 16.1c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5.1 2.5 2 4.5 4.5 4.5" />
       </svg>
 
-      <h4 className="small-message">first to use discord link:「yannblu」</h4>
+      <h3 className="small-message">first to use discord link:「yannblu」</h3>
     </div>
   );
 }
