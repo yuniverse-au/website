@@ -48,8 +48,8 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
   isolation: isolate;
 
   animation:
-    colorShift 3s ease-in-out forwards,
-    fadeOut    3s ease-in        5s forwards;
+    colorShift 3s ease-in-out 1s forwards,
+    fadeOut    4s ease-in        7s forwards;
 }
 
 .preload-ghost {
