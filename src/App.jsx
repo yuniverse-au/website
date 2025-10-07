@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import Dither from "./Dither";
+import BlobCursor from './BlobCursor';
 import "./App.css";
 
 export default function App() {
@@ -57,7 +58,7 @@ export default function App() {
         <Dither
           waveColor={waveColor}
           disableAnimation={false}
-          enableMouseInteraction={true}
+          enableMouseInteraction={false}
           mouseRadius={0.3}
           colorNum={colorSteps}
           waveAmplitude={0.3}
@@ -65,6 +66,25 @@ export default function App() {
           waveSpeed={0.04}
         />
       </div>
+
+      <BlobCursor
+        blobType="circle"
+        fillColor="#000"
+        trailCount={4}
+        sizes={[200, 125, 75, 50]}
+        innerSizes={[20, 35, 25]}
+        innerColor="rgba(0, 0, 0, 1)"
+        opacities={[0.6, 0.6, 0.6]}
+        shadowColor="rgba(0, 0, 0, 0)"
+        shadowBlur={5}
+        shadowOffsetX={10}
+        shadowOffsetY={10}
+        filterStdDeviation={30}
+        useFilter={true}
+        fastDuration={0.9}
+        slowDuration={0.2}
+        zIndex={1}
+      />
 
       <svg
         id="site-logo"
