@@ -20,7 +20,7 @@ export default function BlobCursorDither({
   sizes = [200, 125, 75, 50],
   opacities = [0.6, 0.6, 0.6, 0.6],
   fastDuration = 0.1,
-  slowDuration = 0.5,
+  slowDuration = 0.3,
   fastEase = "power3.out",
   slowEase = "power1.out",
   blurPx = 30,
@@ -60,6 +60,10 @@ export default function BlobCursorDither({
   // Quick tweens to avoid re-creating on every move
   const quickX = useRef([]);
   const quickY = useRef([]);
+  
+  // Track last movement direction for off-screen animation
+  const lastVelocity = useRef({ x: 0, y: 0 });
+  const lastMousePos = useRef({ x: 0, y: 0 });
 
   const resize = useCallback(() => {
     // Cap DPR more aggressively for performance
@@ -68,10 +72,15 @@ export default function BlobCursorDither({
 
     const c = canvasRef.current;
     if (!c) return;
-    c.width = Math.floor(window.innerWidth * DPR);
-    c.height = Math.floor(window.innerHeight * DPR);
-    c.style.width = "100vw";
-    c.style.height = "100vh";
+    
+    // Extend canvas beyond viewport to ensure full coverage at edges
+    const padding = 20; // Smaller padding - just enough for edge coverage
+    c.width = Math.floor((window.innerWidth + padding * 2) * DPR);
+    c.height = Math.floor((window.innerHeight + padding * 2) * DPR);
+    c.style.width = `calc(100vw + ${padding * 2}px)`;
+    c.style.height = `calc(100vh + ${padding * 2}px)`;
+    c.style.left = `-${padding}px`;
+    c.style.top = `-${padding}px`;
 
     // offscreen buffers - use SMALLER resolution for blur processing
     // Even more aggressive downsampling for better performance
@@ -89,22 +98,84 @@ export default function BlobCursorDither({
 
   const onMove = useCallback((e) => {
     const DPR = DPRRef.current;
+    const padding = 20; // Must match padding in resize()
     const x = "clientX" in e ? e.clientX : e.touches?.[0]?.clientX || 0;
     const y = "clientY" in e ? e.clientY : e.touches?.[0]?.clientY || 0;
 
     // Skip if movement is too small (< 2px) - reduces unnecessary updates
     const threshold = 2;
-    const scaledX = x * DPR;
-    const scaledY = y * DPR;
+    // Add padding offset to account for extended canvas
+    const scaledX = (x + padding) * DPR;
+    const scaledY = (y + padding) * DPR;
     const lead = points.current[0];
     
     if (Math.abs(lead.x - scaledX) < threshold && Math.abs(lead.y - scaledY) < threshold) {
       return;
     }
+    
+    // Track velocity for off-screen animation
+    const deltaX = scaledX - lastMousePos.current.x;
+    const deltaY = scaledY - lastMousePos.current.y;
+    lastVelocity.current = { x: deltaX, y: deltaY };
+    lastMousePos.current = { x: scaledX, y: scaledY };
 
     points.current.forEach((p, i) => {
       quickX.current[i](scaledX);
       quickY.current[i](scaledY);
+    });
+  }, []);
+
+  const onLeave = useCallback(() => {
+    const DPR = DPRRef.current;
+    const c = canvasRef.current;
+    if (!c) return;
+    
+    // Calculate off-screen position based on last movement direction
+    const { x: vx, y: vy } = lastVelocity.current;
+    const { x: lastX, y: lastY } = lastMousePos.current;
+    
+    // If no velocity, exit towards nearest edge
+    let exitX = lastX;
+    let exitY = lastY;
+    
+    if (Math.abs(vx) > 1 || Math.abs(vy) > 1) {
+      // Use velocity to determine exit direction
+      const magnitude = Math.sqrt(vx * vx + vy * vy);
+      const normalizedVx = vx / magnitude;
+      const normalizedVy = vy / magnitude;
+      
+      // Project off-screen at a reasonable distance
+      exitX = lastX + normalizedVx * 800 * DPR;
+      exitY = lastY + normalizedVy * 800 * DPR;
+    } else {
+      // No clear direction, exit towards nearest edge
+      const distToLeft = lastX;
+      const distToRight = c.width - lastX;
+      const distToTop = lastY;
+      const distToBottom = c.height - lastY;
+      const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+      
+      if (minDist === distToLeft) exitX = -800 * DPR;
+      else if (minDist === distToRight) exitX = c.width + 800 * DPR;
+      else if (minDist === distToTop) exitY = -800 * DPR;
+      else exitY = c.height + 800 * DPR;
+    }
+    
+    // Animate all points off-screen with a smooth ease
+    points.current.forEach((p, i) => {
+      gsap.to(p, {
+        x: exitX,
+        y: exitY,
+        duration: 1.0, // Balanced duration for smooth exit
+        ease: "power1.out" // Gentler ease for smoother exit
+      });
+    });
+  }, []);
+
+  const onEnter = useCallback(() => {
+    // Kill any ongoing exit animations
+    points.current.forEach((p) => {
+      gsap.killTweensOf(p);
     });
   }, []);
 
@@ -118,6 +189,9 @@ export default function BlobCursorDither({
     window.addEventListener("resize", onResize);
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("touchmove", onMove, { passive: true });
+    window.addEventListener("mouseleave", onLeave);
+    window.addEventListener("mouseenter", onEnter);
+    document.documentElement.addEventListener("mouseleave", onLeave);
 
     // set up quickTo tweens once
     points.current.forEach((p, i) => {
@@ -145,6 +219,7 @@ export default function BlobCursorDither({
     let lastMoveTime = performance.now();
     let isMoving = false;
     let idleTimer = null;
+    let isExiting = false; // Track if we're in exit animation
     
     // Adaptive performance: track frame times and skip frames if needed
     let lastRenderTime = 0;
@@ -197,8 +272,8 @@ export default function BlobCursorDither({
       
       // Only render if cursor moved recently OR animations are still settling
       const timeSinceMove = currentTime - lastMoveTime;
-      if (timeSinceMove > 100 && !isMoving && isSettled) {
-        return; // Skip rendering when everything is settled
+      if (timeSinceMove > 100 && !isMoving && isSettled && !isExiting) {
+        return; // Skip rendering when everything is settled and not exiting
       }
       
       // Measure render time for adaptive performance
@@ -334,19 +409,47 @@ export default function BlobCursorDither({
     const wrappedOnMove = (e) => {
       lastMoveTime = performance.now();
       isMoving = true;
+      isExiting = false; // Cancel exit if mouse moves
       isSettled = false; // Reset settlement when mouse moves
       settledFrameCount = 0;
       clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
         isMoving = false;
       }, 100);
+      
+      // Kill any exit animations when mouse moves
+      if (isExiting) {
+        points.current.forEach((p) => {
+          gsap.killTweensOf(p);
+        });
+      }
+      
       originalOnMove(e);
+    };
+    
+    // Wrap onLeave to set exit flag
+    const originalOnLeave = onLeave;
+    const wrappedOnLeave = () => {
+      isExiting = true;
+      isSettled = false; // Keep rendering during exit
+      originalOnLeave();
+      
+      // After exit animation duration, mark as complete
+      setTimeout(() => {
+        isExiting = false;
+        isSettled = true;
+      }, 1100); // Slightly longer than animation (1.0s)
     };
     
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("touchmove", onMove);
+    window.removeEventListener("mouseleave", onLeave);
+    document.documentElement.removeEventListener("mouseleave", onLeave);
+    
     window.addEventListener("pointermove", wrappedOnMove, { passive: true });
     window.addEventListener("touchmove", wrappedOnMove, { passive: true });
+    window.addEventListener("mouseleave", wrappedOnLeave);
+    document.documentElement.addEventListener("mouseleave", wrappedOnLeave);
 
     loop(performance.now());
     return () => {
@@ -355,9 +458,12 @@ export default function BlobCursorDither({
       window.removeEventListener("resize", onResize);
       window.removeEventListener("pointermove", wrappedOnMove);
       window.removeEventListener("touchmove", wrappedOnMove);
+      window.removeEventListener("mouseleave", wrappedOnLeave);
+      window.removeEventListener("mouseenter", onEnter);
+      document.documentElement.removeEventListener("mouseleave", wrappedOnLeave);
     };
   }, [
-    resize, onMove, trailCount, sizes, opacities,
+    resize, onMove, onLeave, trailCount, sizes, opacities,
     blurPx, threshold, colorNum, pixelSize, whiteCutoff, thresholdShift,
     fastDuration, slowDuration, fastEase, slowEase
   ]);
@@ -365,16 +471,19 @@ export default function BlobCursorDither({
   return (
     <div
       ref={wrapRef}
-      style={{ position: "fixed", inset: 0, zIndex, pointerEvents: "none" }}
+      style={{ 
+        position: "fixed", 
+        inset: 0, 
+        zIndex, 
+        pointerEvents: "none",
+        overflow: "hidden" // Clip extended canvas at viewport edges
+      }}
       aria-hidden
     >
       <canvas
         ref={canvasRef}
         style={{
           position: "absolute",
-          inset: 0,
-          width: "100vw",
-          height: "100vh",
           mixBlendMode: "multiply"
         }}
       />

@@ -1,15 +1,49 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Dither from "./Dither";
 import BlobCursorDither from "./BlobCursorDither";
 import "./App.css";
 
 export default function App() {
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  const colorSteps = isMobile ? 20 : 10;
-  const waveColor = isMobile ? [0.5, 0.5, 0.5] : [0.4, 0.4, 0.4];
+  const colorSteps = isMobile ? 8 : 8;
+  const waveColor = isMobile ? [0.3, 0.3, 0.3] : [0.2, 0.2, 0.2];
   
-  // Match background dither resolution for consistency
   const blobPixelSize = 2;
+
+  // Calculate responsive scale based on viewport width
+  // Scale from 0.2x at 768px to 1.0x at 3840px (4K)
+  const [blobScale, setBlobScale] = useState(1);
+  
+  useEffect(() => {
+    const updateScale = () => {
+      const width = window.innerWidth;
+      // Linear scale: 768px = 0.2x, 3840px (4K) = 1.0x
+      // For screens smaller than 768px, cap at 0.2x
+      // For screens larger than 3840px, cap at 1.0x
+      const minWidth = 768;
+      const maxWidth = 3840;
+      const minScale = 0.2;
+      const maxScale = 1.0;
+      
+      if (width <= minWidth) {
+        setBlobScale(minScale);
+      } else if (width >= maxWidth) {
+        setBlobScale(maxScale);
+      } else {
+        const scale = minScale + ((width - minWidth) / (maxWidth - minWidth)) * (maxScale - minScale);
+        setBlobScale(scale);
+      }
+    };
+    
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
+  }, []);
+
+
+  const baseSizes = isMobile ? [900, 675, 450, 270] : [1050, 750, 600, 450, 150];
+  const scaledSizes = baseSizes.map(size => Math.round(size * blobScale));
+  const scaledBlur = Math.round((isMobile ? 65 : 82) * blobScale);
 
   useEffect(() => {
   const real = document.getElementById("site-logo");
@@ -71,10 +105,10 @@ export default function App() {
       </div>
 
       <BlobCursorDither
-        trailCount={isMobile ? 3 : 4}
-        sizes={isMobile ? [420, 280, 160] : [700, 500, 400, 300, 100]}
-        opacities={isMobile ? [0.8, 0.55, 0.35] : [0.9, 0.75, 0.55, 0.4, 0.3]}
-        blurPx={isMobile ? 35 : 55}
+        trailCount={isMobile ? 4 : 5}
+        sizes={scaledSizes}
+        opacities={isMobile ? [0.85, 0.7, 0.5, 0.35] : [0.9, 0.75, 0.55, 0.4, 0.3]}
+        blurPx={scaledBlur}
         threshold={0.28}
         pixelSize={blobPixelSize}
         whiteCutoff={0.7}
