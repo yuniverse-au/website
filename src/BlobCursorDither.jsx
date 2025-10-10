@@ -188,6 +188,7 @@ export default function BlobCursorDither({
     };
     window.addEventListener("resize", onResize);
     window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("touchstart", onMove, { passive: true });
     window.addEventListener("touchmove", onMove, { passive: true });
     window.addEventListener("mouseleave", onLeave);
     window.addEventListener("mouseenter", onEnter);
@@ -457,6 +458,7 @@ export default function BlobCursorDither({
       clearTimeout(idleTimer);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("pointermove", wrappedOnMove);
+      window.removeEventListener("touchstart", wrappedOnMove);
       window.removeEventListener("touchmove", wrappedOnMove);
       window.removeEventListener("mouseleave", wrappedOnLeave);
       window.removeEventListener("mouseenter", onEnter);

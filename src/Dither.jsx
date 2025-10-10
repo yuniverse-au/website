@@ -116,7 +116,7 @@ const float bayerMatrix8x8[64] = float[64](
 vec3 dither(vec2 uv, vec3 color) {
   float whiteCutoff    = 0.4;  // higher = fewer light pixels promoted
   float thresholdShift = -1.6; // negative = a few more light speckles
-  float whiteLevel     = 0.7;  // the "white" output becomes grey-ish
+  float whiteLevel     = 0.6;
 
   color = clamp(color, 0.0, 1.0);
 
