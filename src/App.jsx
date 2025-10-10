@@ -1,6 +1,6 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import Dither from "./Dither";
-import BlobCursor from './BlobCursor';
+import BlobCursorDither from "./BlobCursorDither";
 import "./App.css";
 
 export default function App() {
@@ -67,23 +67,15 @@ export default function App() {
         />
       </div>
 
-      <BlobCursor
-        blobType="circle"
-        fillColor="#000"
-        trailCount={4}
-        sizes={[200, 125, 75, 50]}
-        innerSizes={[20, 35, 25]}
-        innerColor="rgba(0, 0, 0, 1)"
-        opacities={[0.6, 0.6, 0.6]}
-        shadowColor="rgba(0, 0, 0, 0)"
-        shadowBlur={5}
-        shadowOffsetX={10}
-        shadowOffsetY={10}
-        filterStdDeviation={30}
-        useFilter={true}
-        fastDuration={0.9}
-        slowDuration={0.2}
-        zIndex={1}
+      <BlobCursorDither
+        trailCount={isMobile ? 3 : 4}
+        sizes={isMobile ? [420, 280, 160] : [700, 500, 400, 300, 100]}
+        opacities={isMobile ? [0.8, 0.55, 0.35] : [0.9, 0.75, 0.55, 0.4, 0.3]}
+        blurPx={isMobile ? 35 : 55}
+        threshold={0.28}
+        pixelSize={isMobile ? 3 : 2}
+        whiteCutoff={0.7}
+        thresholdShift={-0.4}
       />
 
       <svg
@@ -104,7 +96,7 @@ export default function App() {
       </svg>
 
       <svg
-        id="site-logo"
+        id="site-logo-solid"
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 631.7 145.6"
         fill="currentColor"
