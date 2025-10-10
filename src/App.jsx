@@ -7,6 +7,9 @@ export default function App() {
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const colorSteps = isMobile ? 20 : 10;
   const waveColor = isMobile ? [0.5, 0.5, 0.5] : [0.4, 0.4, 0.4];
+  
+  // Match background dither resolution for consistency
+  const blobPixelSize = 2;
 
   useEffect(() => {
   const real = document.getElementById("site-logo");
@@ -73,7 +76,7 @@ export default function App() {
         opacities={isMobile ? [0.8, 0.55, 0.35] : [0.9, 0.75, 0.55, 0.4, 0.3]}
         blurPx={isMobile ? 35 : 55}
         threshold={0.28}
-        pixelSize={isMobile ? 3 : 2}
+        pixelSize={blobPixelSize}
         whiteCutoff={0.7}
         thresholdShift={-0.4}
       />
