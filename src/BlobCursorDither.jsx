@@ -15,6 +15,9 @@ const BAYER_8 = [
 // Pre-normalize Bayer to [0,1]
 const BAYER_8_NORM = BAYER_8.map(row => row.map(v => v / 64));
 
+// Keep padding configurable in one place so the canvas can draw past the viewport edge
+const CANVAS_PADDING = 150;
+
 export default function BlobCursorDither({
   trailCount = 4,
   sizes = [200, 125, 75, 50],
@@ -30,7 +33,8 @@ export default function BlobCursorDither({
   colorNum = 4,
   pixelSize = 2,
   whiteCutoff = 0.7,
-  thresholdShift = -0.4
+  thresholdShift = -0.4,
+  onExpansionComplete = null
 }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
@@ -57,6 +61,19 @@ export default function BlobCursorDither({
     b: parseInt(color.slice(5, 7), 16) || 0,
   });
 
+  // Track link elements and whether we're hovering over one
+  const linkElements = useRef([]);
+  const isOverLink = useRef(false);
+  const currentSizeMultiplier = useRef(1);
+  const targetBlobSize = useRef(0); // Track target size for dynamic scaling
+  const magnetStrength = 120; // Distance within which magnetism activates (increased from 80)
+
+  // Expansion animation state
+  const isExpanding = useRef(false);
+  const expansionMultiplier = useRef(1);
+  const colorTransition = useRef({ r: 0, g: 0, b: 0 });
+  const blobOpacity = useRef(1); // Control blob visibility during transition
+
   // Quick tweens to avoid re-creating on every move
   const quickX = useRef([]);
   const quickY = useRef([]);
@@ -73,12 +90,14 @@ export default function BlobCursorDither({
     const c = canvasRef.current;
     if (!c) return;
     
-    // Extend canvas beyond viewport to ensure full coverage at edges
-    const padding = 20; // Smaller padding - just enough for edge coverage
-    c.width = Math.floor((window.innerWidth + padding * 2) * DPR);
-    c.height = Math.floor((window.innerHeight + padding * 2) * DPR);
-    c.style.width = `calc(100vw + ${padding * 2}px)`;
-    c.style.height = `calc(100vh + ${padding * 2}px)`;
+    // Extend canvas beyond viewport so the blob can render past the edge without clipping
+    const padding = CANVAS_PADDING;
+    const styleWidth = window.innerWidth + padding * 2;
+    const styleHeight = window.innerHeight + padding * 2;
+    c.width = Math.floor(styleWidth * DPR);
+    c.height = Math.floor(styleHeight * DPR);
+    c.style.width = `${styleWidth}px`;
+    c.style.height = `${styleHeight}px`;
     c.style.left = `-${padding}px`;
     c.style.top = `-${padding}px`;
 
@@ -98,9 +117,62 @@ export default function BlobCursorDither({
 
   const onMove = useCallback((e) => {
     const DPR = DPRRef.current;
-    const padding = 20; // Must match padding in resize()
-    const x = "clientX" in e ? e.clientX : e.touches?.[0]?.clientX || 0;
-    const y = "clientY" in e ? e.clientY : e.touches?.[0]?.clientY || 0;
+    const padding = CANVAS_PADDING; // Must match padding in resize()
+    let x = "clientX" in e ? e.clientX : e.touches?.[0]?.clientX || 0;
+    let y = "clientY" in e ? e.clientY : e.touches?.[0]?.clientY || 0;
+
+    // Skip magnetism and size effects if expansion animation is active
+    if (!isExpanding.current) {
+      // Check for link magnetism
+      let closestLink = null;
+      let minDist = magnetStrength;
+      let wasOverLink = isOverLink.current;
+      isOverLink.current = false;
+
+      for (const link of linkElements.current) {
+        const rect = link.getBoundingClientRect();
+        
+        // For rotated links, calculate center more accurately
+        const linkCenterX = rect.left + rect.width / 2;
+        const linkCenterY = rect.top + rect.height / 2;
+        
+        const dx = x - linkCenterX;
+        const dy = y - linkCenterY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        // Check if cursor is very close or within the link area
+        if (dist < minDist) {
+          minDist = dist;
+          closestLink = { x: linkCenterX, y: linkCenterY, dist, rect };
+          isOverLink.current = true;
+        }
+      }
+
+      // Apply magnetism if close to a link - stronger pull
+      if (closestLink && closestLink.dist < magnetStrength) {
+        const magnetFactor = 1 - (closestLink.dist / magnetStrength);
+        // Strong pull but capped at 0.95 to prevent overshooting
+        const pullStrength = Math.min(0.95, magnetFactor * 1.2);
+        x = x + (closestLink.x - x) * pullStrength;
+        y = y + (closestLink.y - y) * pullStrength;
+      }
+
+      // Animate size based on link dimensions
+      if (isOverLink.current && closestLink) {
+        // Increase blob size by 5% when magnetized
+        const sizeMultiplier = 1.3;
+        
+        if (!wasOverLink) {
+          gsap.to(currentSizeMultiplier, { 
+            current: sizeMultiplier,
+            duration: 0.3, 
+            ease: "power2.out" 
+          });
+        }
+      } else if (!isOverLink.current && wasOverLink) {
+        gsap.to(currentSizeMultiplier, { current: 1, duration: 0.3, ease: "power2.out" });
+      }
+    }
 
     // Skip if movement is too small (< 2px) - reduces unnecessary updates
     const threshold = 2;
@@ -123,7 +195,7 @@ export default function BlobCursorDither({
       quickX.current[i](scaledX);
       quickY.current[i](scaledY);
     });
-  }, []);
+  }, [sizes]);
 
   const onLeave = useCallback(() => {
     const DPR = DPRRef.current;
@@ -179,12 +251,203 @@ export default function BlobCursorDither({
     });
   }, []);
 
+  const handleLinkClick = useCallback((e) => {
+    e.preventDefault();
+    if (isExpanding.current) return;
+    
+    isExpanding.current = true;
+  const targetUrl = e.currentTarget.href;
+    
+    // Remove any previous floating overlays
+    document.querySelectorAll('[data-floating-link="true"],[data-floating-links="true"]').forEach(node => {
+      node.remove();
+    });
+
+    const sideNavs = Array.from(document.querySelectorAll('.side-links'));
+
+    // Duplicate each side nav so layout/spacing matches the original stack
+    sideNavs.forEach(nav => {
+      const rect = nav.getBoundingClientRect();
+      const computedNav = window.getComputedStyle(nav);
+      const navClone = nav.cloneNode(true);
+
+      navClone.setAttribute('data-floating-links', 'true');
+      navClone.setAttribute('aria-hidden', 'true');
+      navClone.style.position = 'fixed';
+      navClone.style.pointerEvents = 'none';
+      navClone.style.top = `${rect.top}px`;
+      navClone.style.left = `${rect.left}px`;
+      navClone.style.width = `${rect.width}px`;
+      navClone.style.height = `${rect.height}px`;
+      navClone.style.bottom = 'auto';
+      navClone.style.right = 'auto';
+      navClone.style.margin = '0';
+      navClone.style.mixBlendMode = computedNav.mixBlendMode;
+      navClone.style.filter = computedNav.filter;
+      navClone.style.color = computedNav.color;
+      navClone.style.display = computedNav.display;
+      navClone.style.flexDirection = computedNav.flexDirection;
+      navClone.style.justifyContent = computedNav.justifyContent;
+      navClone.style.alignItems = computedNav.alignItems;
+      navClone.style.gap = computedNav.gap;
+      navClone.style.zIndex = nav.classList.contains('side-links--diff') ? '12' : '13';
+
+      const anchorNodes = Array.from(navClone.querySelectorAll('.side-links__a'));
+      anchorNodes.forEach(anchor => {
+        const span = document.createElement('span');
+        span.className = anchor.className;
+        span.textContent = anchor.textContent;
+        span.setAttribute('aria-hidden', 'true');
+
+        const anchorStyles = window.getComputedStyle(anchor);
+        span.style.display = anchorStyles.display;
+        span.style.transform = anchorStyles.transform;
+        span.style.transformOrigin = anchorStyles.transformOrigin;
+        span.style.whiteSpace = anchorStyles.whiteSpace;
+        span.style.fontFamily = anchorStyles.fontFamily;
+        span.style.fontSize = anchorStyles.fontSize;
+        span.style.fontWeight = anchorStyles.fontWeight;
+        span.style.letterSpacing = anchorStyles.letterSpacing;
+        span.style.lineHeight = anchorStyles.lineHeight;
+        span.style.padding = anchorStyles.padding;
+        span.style.pointerEvents = 'none';
+        span.style.color = anchorStyles.color;
+        span.style.textDecoration = 'none';
+
+        // Only the clicked link stays visible; others reserve space but remain transparent
+        span.style.opacity = anchor.href === targetUrl ? '1' : '0';
+
+        anchor.replaceWith(span);
+      });
+
+      document.body.appendChild(navClone);
+    });
+    
+    // Increase blob z-index to cover other links (but not the clicked one)
+    if (wrapRef.current) {
+      wrapRef.current.style.zIndex = '10';
+    }
+    
+    // Initialize color transition to current color (black)
+    colorTransition.current = { r: 0, g: 0, b: 0 };
+    
+    // Get viewport dimensions and calculate size needed to cover entire screen
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const viewportDiagonal = Math.sqrt(viewportWidth ** 2 + viewportHeight ** 2);
+    
+    // The blob has a radial gradient where the center is solid and edges fade out
+    // We need the SOLID CENTER (not blurred edges) to cover the viewport diagonal
+    // The solid part is roughly 40-50% of the blob radius due to gradient + blur
+    // So we need to make the blob ~2.5x larger than the viewport diagonal
+    const baseSize = sizes[0] || 200;
+    const baseRadius = baseSize * 0.5; // Radius is half the size
+    
+    // Account for blur radius - the blur extends the visual size significantly
+    const blurRadius = blurPx * 1.5; // Approximate blur expansion
+    
+    // Calculate how much of the blob is actually solid (before gradient falloff)
+    // The radial gradient goes from solid at center to transparent at edge
+    // We need the solid portion to cover the viewport diagonal
+    const solidCoreFactor = 0.3; // Only ~30% of radius is fully solid before fade
+    
+    // Target: solid core radius = viewportDiagonal
+    // If solidCore = blobRadius * solidCoreFactor
+    // Then blobRadius = viewportDiagonal / solidCoreFactor
+    const targetRadius = viewportDiagonal / solidCoreFactor;
+    const targetSize = targetRadius * 2; // Convert radius to diameter
+    
+    // Add extra for blur that happens after
+    const targetSizeWithBlur = targetSize + (blurRadius * 4);
+    
+    const finalMultiplier = targetSizeWithBlur / baseSize;
+    
+    // Phase 1: Expand blob to fill screen (0.6 second - faster for performance)
+    gsap.to(expansionMultiplier, {
+      current: finalMultiplier,
+      duration: 0.6,
+      ease: "power2.inOut",
+      onUpdate: () => {
+        currentSizeMultiplier.current = expansionMultiplier.current;
+      },
+      onComplete: () => {
+        // Phase 2: Swap background to black and disable dither
+        document.body.style.backgroundColor = '#000000';
+        if (onExpansionComplete) {
+          onExpansionComplete();
+        }
+        
+        // Hide original side links now that the blob has fully expanded
+        // but keep the floating replicas visible
+        document.querySelectorAll('.side-links:not([data-floating-links])').forEach(nav => {
+          nav.style.display = 'none';
+        });
+        
+        // Phase 3: Hide blobs and shrink back to original size
+        gsap.to(blobOpacity, {
+          current: 0,
+          duration: 0.3,
+          ease: "power2.out",
+          onComplete: () => {
+            // While hidden, change color to #cbcbcb
+            rgb.current = { r: 203, g: 203, b: 203 };
+            
+            // Shrink back to original size (while still hidden)
+            gsap.to(expansionMultiplier, {
+              current: 1,
+              duration: 0.4,
+              ease: "power2.out",
+              onUpdate: () => {
+                currentSizeMultiplier.current = expansionMultiplier.current;
+              },
+              onComplete: () => {
+                // Phase 4: Fade blobs back in with new color
+                gsap.to(blobOpacity, {
+                  current: 1,
+                  duration: 0.8,
+                  ease: "power2.inOut",
+                  onComplete: () => {
+                    // Navigate to the target URL
+                    window.location.href = targetUrl;
+                    // Clean up floating link overlays if navigation stays on the same page
+                    requestAnimationFrame(() => {
+                      if (wrapRef.current) {
+                        wrapRef.current.style.zIndex = String(zIndex);
+                      }
+                      document.querySelectorAll('[data-floating-link="true"]').forEach(node => node.remove());
+                    });
+                  }
+                });
+              }
+            });
+          }
+        });
+      }
+    });
+  }, [sizes, onExpansionComplete, blurPx, zIndex]);
+
   useEffect(() => {
     resize();
+    
+    // Cache link element references and attach click handlers
+    const updateLinks = () => {
+      linkElements.current = Array.from(document.querySelectorAll('.side-links__a'));
+      
+      // Attach click handlers to all links
+      linkElements.current.forEach(link => {
+        link.addEventListener('click', handleLinkClick);
+      });
+    };
+    updateLinks();
+    
+    // Update link positions on resize
     let resizeRaf = 0;
     const onResize = () => {
       cancelAnimationFrame(resizeRaf);
-      resizeRaf = requestAnimationFrame(resize);
+      resizeRaf = requestAnimationFrame(() => {
+        resize();
+        updateLinks();
+      });
     };
     window.addEventListener("resize", onResize);
     window.addEventListener("pointermove", onMove, { passive: true });
@@ -271,10 +534,10 @@ export default function BlobCursorDither({
         isSettled = false;
       }
       
-      // Only render if cursor moved recently OR animations are still settling
+      // Only render if cursor moved recently OR animations are still settling OR expanding
       const timeSinceMove = currentTime - lastMoveTime;
-      if (timeSinceMove > 100 && !isMoving && isSettled && !isExiting) {
-        return; // Skip rendering when everything is settled and not exiting
+      if (timeSinceMove > 100 && !isMoving && isSettled && !isExiting && !isExpanding.current) {
+        return; // Skip rendering when everything is settled and not exiting or expanding
       }
       
       // Measure render time for adaptive performance
@@ -295,7 +558,11 @@ export default function BlobCursorDither({
 
       dctx.clearRect(0, 0, dcan.width, dcan.height);
 
-      const maxR = Math.max(...sizes) * DPR;
+      const maxR = Math.max(...sizes) * DPR * currentSizeMultiplier.current;
+      
+      // Performance optimization: when expanding to huge size, reduce quality temporarily
+      const isHugeExpansion = currentSizeMultiplier.current > 10;
+      const renderGrid = isHugeExpansion ? grid * 2 : grid; // Double pixel size when huge
       
       // Optimize: batch drawing operations
       dctx.globalCompositeOperation = 'source-over';
@@ -304,11 +571,13 @@ export default function BlobCursorDither({
       for (let i = 0; i < trailCount; i++) {
         const p = points.current[i];
         if (p.x < -9000) continue;
-        const R = (sizes[i] || sizes[sizes.length - 1]) * DPR * blurScale * 0.5;
+        const baseSize = sizes[i] || sizes[sizes.length - 1];
+        const R = baseSize * DPR * blurScale * 0.5 * currentSizeMultiplier.current;
         const scaledX = p.x * blurScale;
         const scaledY = p.y * blurScale;
         
-        dctx.globalAlpha = opacities[i] ?? 1;
+        // Apply both the individual opacity and the transition opacity
+        dctx.globalAlpha = (opacities[i] ?? 1) * blobOpacity.current;
         
         // Simplified gradient for better performance
         const grad = dctx.createRadialGradient(scaledX, scaledY, 0, scaledX, scaledY, R);
@@ -324,7 +593,9 @@ export default function BlobCursorDither({
 
       // 2) blur by drawing drawCan → blurCan with filter ON
       bctx.clearRect(0, 0, bcan.width, bcan.height);
-      bctx.filter = `blur(${blurPx * DPR * blurScale}px)`;
+      // Reduce blur during huge expansion for performance
+      const effectiveBlur = isHugeExpansion ? blurPx * 0.5 : blurPx;
+      bctx.filter = `blur(${effectiveBlur * DPR * blurScale}px)`;
       bctx.drawImage(dcan, 0, 0);
       bctx.filter = "none";
 
@@ -334,10 +605,10 @@ export default function BlobCursorDither({
       const minY = Math.max(0, Math.min(...points.current.map(p => p.y)) - maxR);
       const maxY = Math.min(c.height, Math.max(...points.current.map(p => p.y)) + maxR);
       
-      const startX = Math.floor(minX / grid) * grid;
-      const endX = Math.ceil(maxX / grid) * grid;
-      const startY = Math.floor(minY / grid) * grid;
-      const endY = Math.ceil(maxY / grid) * grid;
+      const startX = Math.floor(minX / renderGrid) * renderGrid;
+      const endX = Math.ceil(maxX / renderGrid) * renderGrid;
+      const startY = Math.floor(minY / renderGrid) * renderGrid;
+      const endY = Math.ceil(maxY / renderGrid) * renderGrid;
 
       // Only get image data for the region we need (scaled to blur canvas size)
       const sampleX = Math.floor(startX * blurScale);
@@ -356,12 +627,12 @@ export default function BlobCursorDither({
       outCtx.fillStyle = `rgb(${r},${g},${b})`;
 
       // Process only the bounded region
-      for (let y = startY; y < endY; y += grid) {
-        const gy = (Math.floor(y / grid) & 7);
+      for (let y = startY; y < endY; y += renderGrid) {
+        const gy = (Math.floor(y / renderGrid) & 7);
         const bayerRow = BAYER_8_NORM[gy];
         
-        for (let x = startX; x < endX; x += grid) {
-          const gx = (Math.floor(x / grid) & 7);
+        for (let x = startX; x < endX; x += renderGrid) {
+          const gx = (Math.floor(x / renderGrid) & 7);
           
           // Map to the sampled region coordinates
           const localX = Math.floor((x - startX) * blurScale);
@@ -374,7 +645,7 @@ export default function BlobCursorDither({
           const bayer = bayerRow[gx];
           const localCut = Math.min(1, Math.max(0, whiteCutoff - (bayer + thresholdShift) * stepSize));
           if (stepped >= localCut) {
-            outCtx.fillRect(x, y, grid, grid);
+            outCtx.fillRect(x, y, renderGrid, renderGrid);
           }
         }
       }
@@ -456,6 +727,12 @@ export default function BlobCursorDither({
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(idleTimer);
+      
+      // Remove click handlers from links
+      linkElements.current.forEach(link => {
+        link.removeEventListener('click', handleLinkClick);
+      });
+      
       window.removeEventListener("resize", onResize);
       window.removeEventListener("pointermove", wrappedOnMove);
       window.removeEventListener("touchstart", wrappedOnMove);
@@ -465,7 +742,7 @@ export default function BlobCursorDither({
       document.documentElement.removeEventListener("mouseleave", wrappedOnLeave);
     };
   }, [
-    resize, onMove, onLeave, trailCount, sizes, opacities,
+    resize, onMove, onLeave, handleLinkClick, trailCount, sizes, opacities,
     blurPx, threshold, colorNum, pixelSize, whiteCutoff, thresholdShift,
     fastDuration, slowDuration, fastEase, slowEase
   ]);
@@ -475,7 +752,9 @@ export default function BlobCursorDither({
       ref={wrapRef}
       style={{ 
         position: "fixed", 
-        inset: 0, 
+        inset: 0,
+        width: "100%",
+        height: "100%",
         zIndex, 
         pointerEvents: "none",
         overflow: "hidden" // Clip extended canvas at viewport edges

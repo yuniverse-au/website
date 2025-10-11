@@ -6,6 +6,7 @@ import "./App.css";
 export default function App() {
   const [isMobile, setIsMobile] = useState(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
   const [logoSize, setLogoSize] = useState(isMobile ? "70vw" : "40vw");
+  const [ditherEnabled, setDitherEnabled] = useState(true);
   
   const colorSteps = isMobile ? 8 : 8;
   const waveColor = isMobile ? [0.3, 0.3, 0.3] : [0.2, 0.2, 0.2];
@@ -19,26 +20,27 @@ export default function App() {
   useEffect(() => {
     const updateScale = () => {
       const width = window.innerWidth;
+      const height = window.innerHeight;
       
       // Update logo size based on viewport
       const newIsMobile = width <= 768;
       setIsMobile(newIsMobile);
       setLogoSize(newIsMobile ? "70vw" : "40vw");
       
-      // Linear scale: 768px = 0.2x, 3840px (4K) = 1.0x
-      // For screens smaller than 768px, cap at 0.2x
-      // For screens larger than 3840px, cap at 1.0x
-      const minWidth = 768;
-      const maxWidth = 3840;
+      // Scale based on viewport HEIGHT only: 600px = 0.2x, 2160px (4K height) = 1.0x
+      // For screens smaller than 600px, cap at 0.2x
+      // For screens larger than 2160px, cap at 1.0x
+      const minHeight = 600;
+      const maxHeight = 2160;
       const minScale = 0.2;
       const maxScale = 1.0;
       
-      if (width <= minWidth) {
+      if (height <= minHeight) {
         setBlobScale(minScale);
-      } else if (width >= maxWidth) {
+      } else if (height >= maxHeight) {
         setBlobScale(maxScale);
       } else {
-        const scale = minScale + ((width - minWidth) / (maxWidth - minWidth)) * (maxScale - minScale);
+        const scale = minScale + ((height - minHeight) / (maxHeight - minHeight)) * (maxScale - minScale);
         setBlobScale(scale);
       }
     };
@@ -49,48 +51,75 @@ export default function App() {
   }, []);
 
 
-  const baseSizes = isMobile ? [900, 675, 450, 270] : [1050, 750, 600, 450, 150];
+  const baseSizes = isMobile ? [900, 675, 450, 270] : [800, 550, 400, 280, 120];
   const scaledSizes = baseSizes.map(size => Math.round(size * blobScale));
   const scaledBlur = Math.round((isMobile ? 65 : 82) * blobScale);
 
   useEffect(() => {
-  const real = document.getElementById("site-logo");
-  const ghostHost = document.querySelector(".preload-ghost");
-  if (!real || !ghostHost) return;
+    const real = document.getElementById("site-logo");
+    const ghostHost = document.querySelector(".preload-ghost");
+    if (!real || !ghostHost) return;
 
-  const ghost = real.cloneNode(true);
-  ghost.removeAttribute("id");
-  ghost.setAttribute("class", "preload-logo-svg");
-  ghost.style.color = "#000";
-  ghost.style.filter = "none";
-  ghost.style.mixBlendMode = "normal";
-  ghostHost.innerHTML = "";
-  ghostHost.appendChild(ghost);
+    const ghost = real.cloneNode(true);
+    ghost.removeAttribute("id");
+    ghost.setAttribute("class", "preload-logo-svg");
+    ghost.style.color = "#000";
+    ghost.style.filter = "none";
+    ghost.style.mixBlendMode = "normal";
+    ghostHost.innerHTML = "";
+    ghostHost.appendChild(ghost);
 
-  const place = () => {
-    const r = real.getBoundingClientRect();
-    ghostHost.style.position = "fixed";
-    ghostHost.style.transform = `translate(${r.left}px, ${r.top}px)`;
-    ghostHost.style.width = `${r.width}px`;
-    ghostHost.style.height = `${r.height}px`;
-  };
+    const place = () => {
+      const r = real.getBoundingClientRect();
+      ghostHost.style.position = "fixed";
+      ghostHost.style.transform = `translate(${r.left}px, ${r.top}px)`;
+      ghostHost.style.width = `${r.width}px`;
+      ghostHost.style.height = `${r.height}px`;
+    };
 
-  place();
-  const ro = new ResizeObserver(place);
-  ro.observe(document.body);
-  window.addEventListener("resize", place, { passive: true });
-  window.addEventListener("orientationchange", place, { passive: true });
-  window.addEventListener("scroll", place, { passive: true });
-  const t = setTimeout(place, 0);
+    place();
+    const ro = new ResizeObserver(place);
+    ro.observe(document.body);
+    window.addEventListener("resize", place, { passive: true });
+    window.addEventListener("orientationchange", place, { passive: true });
+    window.addEventListener("scroll", place, { passive: true });
+    const t = setTimeout(place, 0);
 
-  return () => {
-    ro.disconnect();
-    window.removeEventListener("resize", place);
-    window.removeEventListener("orientationchange", place);
-    window.removeEventListener("scroll", place);
-    clearTimeout(t);
-  };
-}, []);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", place);
+      window.removeEventListener("orientationchange", place);
+      window.removeEventListener("scroll", place);
+      clearTimeout(t);
+    };
+  }, []);
+
+  // Position left links between logo bottom and viewport bottom
+  useEffect(() => {
+    const logo = document.getElementById("site-logo");
+    if (!logo) return;
+
+    const setTop = () => {
+      const r = logo.getBoundingClientRect();
+      // a little breathing room below the logo
+      const top = Math.max(0, Math.round(r.bottom + 12)); 
+      document.documentElement.style.setProperty("--side-links-top", `${top}px`);
+    };
+
+    setTop();
+    const ro = new ResizeObserver(setTop);
+    ro.observe(document.body);
+    window.addEventListener("resize", setTop, { passive: true });
+    window.addEventListener("scroll", setTop, { passive: true });
+    const t = setTimeout(setTop, 0);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", setTop);
+      window.removeEventListener("scroll", setTop);
+      clearTimeout(t);
+    };
+  }, []);
 
   return (
     <div className="app">
@@ -100,16 +129,18 @@ export default function App() {
       </div>
 
       <div className="layer">
-        <Dither
-          waveColor={waveColor}
-          disableAnimation={false}
-          enableMouseInteraction={false}
-          mouseRadius={0.3}
-          colorNum={colorSteps}
-          waveAmplitude={0.3}
-          waveFrequency={0.8}
-          waveSpeed={0.04}
-        />
+        {ditherEnabled && (
+          <Dither
+            waveColor={waveColor}
+            disableAnimation={false}
+            enableMouseInteraction={false}
+            mouseRadius={0.3}
+            colorNum={colorSteps}
+            waveAmplitude={0.3}
+            waveFrequency={0.8}
+            waveSpeed={0.04}
+          />
+        )}
       </div>
 
       <BlobCursorDither
@@ -121,6 +152,7 @@ export default function App() {
         pixelSize={blobPixelSize}
         whiteCutoff={0.7}
         thresholdShift={-0.4}
+        onExpansionComplete={() => setDitherEnabled(false)}
       />
 
       <svg
@@ -145,6 +177,7 @@ export default function App() {
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 631.7 145.6"
         fill="currentColor"
+        aria-label="Yuniverse"
         className="logo logo--solid"
         style={{ width: logoSize }}
         // Logo Designer: ヨギ
@@ -156,6 +189,23 @@ export default function App() {
         <path d="M438.5 120.7c-2.4 0-4.4-2-4.4-4.4V91.4c0-1.5.7-2.9 2-3.7L455 75.3c1.5-1 3.4-1 4.9 0l16.4 10.8 14.5-9.5V37.5L441 70.3c-1.5 1-3.4 1-4.9 0l-18.9-12.4c-1.2-.8-2-2.2-2-3.7s.7-2.9 2-3.7L453 26.9V4.4c0-2.4 2-4.4 4.4-4.4h37.7c2.4 0 4.4 2 4.4 4.4s-2 4.4-4.4 4.4h-33.3v20.4c0 1.5-.7 2.9-2 3.7l-32.1 21.2 10.8 7.1 54.2-35.7c1.4-.9 3.1-1 4.5-.2s2.3 2.3 2.3 3.9V79c0 1.5-.7 2.9-2 3.7l-18.9 12.4c-1.5 1-3.4 1-4.9 0l-16.4-10.8-14.5 9.5v22.4c.1 2.5-1.9 4.5-4.3 4.5m-151-52.8c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5" />
         <path d="M476 71.5c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5.1 2.5 2 4.5 4.5 4.5m0-44.8c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5m-75.1 0c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5m-.1 69.2c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s1.9 4.5 4.5 4.5m.1 17.5c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5.1 2.5 2 4.5 4.5 4.5m0 16.7c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5m-.1 15.5c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5.1 2.5 1.9 4.5 4.5 4.5M532.9 26.7c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5m0 15.8c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5m0 16.1c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5.1 2.5 2 4.5 4.5 4.5" />
       </svg>
+
+      <nav className="side-links side-links--diff" aria-label="Section links">
+        <ul className="side-links__list">
+          <li><a className="side-links__a" href="#about">About</a></li>
+          <li><a className="side-links__a" href="#linkone">LinkOne</a></li>
+          <li><a className="side-links__a" href="#linktwo">LinkTwo</a></li>
+        </ul>
+      </nav>
+
+      <nav className="side-links side-links--solid" aria-label="Section links">
+        <ul className="side-links__list">
+          <li><a className="side-links__a" href="#about">About</a></li>
+          <li><a className="side-links__a" href="#linkone">LinkOne</a></li>
+          <li><a className="side-links__a" href="#linktwo">LinkTwo</a></li>
+        </ul>
+      </nav>
+
 
       <h3 className="small-message">first to use discord link:「yannblu」</h3>
     </div>

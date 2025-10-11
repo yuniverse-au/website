@@ -36,7 +36,7 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
   filter: grayscale(1) contrast(2000%) brightness(200%);
   mix-blend-mode: difference;
   fill: #fff;
-  z-index: 2;
+  z-index: 12;
   will-change: filter;
 }
 
@@ -44,7 +44,7 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
   fill: #000;
   mix-blend-mode:overlay;
   filter: none;
-  z-index: 3;
+  z-index: 13;
 }
 
 .preload-reveal {
@@ -135,4 +135,88 @@ h1, h2, h3 {
   line-height: .95;
   pointer-events: none;
   user-select: none;
+}
+
+/* ===========================
+   Vertical side links (left)
+   =========================== */
+
+:root {
+  /* JS sets this to the logo's bottom edge (in px) */
+  --side-links-top: 40vh;
+}
+
+/* shared container */
+.side-links {
+  position: fixed;
+  left: 14vw; /* Match logo left padding - doubled for more space */
+  /* Start right under the logo, dynamic via JS */
+  top: var(--side-links-top);
+  /* Reserve space down to bottom text - add extra padding */
+  bottom: calc(7vh + 8vh + env(safe-area-inset-bottom)); /* Extra 8vh to stay above bottom text */
+  display: flex;
+  flex-direction: column;
+  /* Layering mirrors the logo setup */
+  pointer-events: none; /* allow clicks only on anchors */
+}
+
+.side-links--diff {
+  z-index: 2;
+  mix-blend-mode: difference;
+  filter: grayscale(1) contrast(2000%) brightness(200%);
+  color: #fff;
+}
+
+.side-links--solid {
+  z-index: 3;
+  mix-blend-mode: overlay;
+  color: #000;
+}
+
+/* list lays items vertically and spreads them evenly */
+.side-links__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly; /* evenly distributed spacing */
+  align-items: flex-start;
+  gap: 0; /* spacing handled by space-evenly */
+}
+
+/* each anchor is rotated 270deg (-90deg) and clickable */
+.side-links__a {
+  pointer-events: auto;
+  display: inline-block;
+  transform: rotate(-90deg); /* 270deg */
+  transform-origin: left top;
+  white-space: nowrap;
+  text-decoration: none;
+  font-family: 'Satoshi-Variable', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  /* Scale with viewport height: 600px = 0.7rem, 2160px (4K) = 1.2rem */
+  font-size: clamp(0.7rem, 0.5rem + 0.65vh, 1.2rem);
+  line-height: 1;
+  padding: 0.35rem 0.5rem; /* click target */
+  user-select: none;
+  color: inherit; /* Inherit color from parent to prevent browser defaults */
+}
+
+/* Remove browser default link colors for all states */
+.side-links__a:link,
+.side-links__a:visited,
+.side-links__a:active {
+  color: inherit;
+}
+
+/* keep things nice on very short viewports */
+@media (max-height: 520px) {
+  .side-links__a {
+    font-size: 0.65rem;
+    padding: 0.25rem 0.4rem;
+  }
 }
