@@ -45,6 +45,7 @@ export default function BlobCursorDither({
   const blurCtxRef = useRef(null);
   // Reduce DPR further for better performance - cap at 1.5x
   const DPRRef = useRef(Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)));
+  const isTracking = useRef(true);
 
   // points animated by GSAP
   const points = useRef(
@@ -117,6 +118,9 @@ export default function BlobCursorDither({
   }, []);
 
   const onMove = useCallback((e) => {
+    if (!isTracking.current) {
+      return;
+    }
     const DPR = DPRRef.current;
     const padding = CANVAS_PADDING; // Must match padding in resize()
     let x = "clientX" in e ? e.clientX : e.touches?.[0]?.clientX || 0;
@@ -199,6 +203,9 @@ export default function BlobCursorDither({
   }, [sizes]);
 
   const onLeave = useCallback(() => {
+    if (!isTracking.current) {
+      return;
+    }
     const DPR = DPRRef.current;
     const c = canvasRef.current;
     if (!c) return;
@@ -256,7 +263,8 @@ export default function BlobCursorDither({
     e.preventDefault();
     if (isExpanding.current) return;
     
-    isExpanding.current = true;
+  isExpanding.current = true;
+  isTracking.current = false;
   const targetUrl = e.currentTarget.href;
     
     // Remove any previous floating overlays
@@ -394,6 +402,9 @@ export default function BlobCursorDither({
                 currentSizeMultiplier.current = expansionMultiplier.current;
               },
               onComplete: () => {
+                // Resume cursor tracking before blobs fade back in
+                isExpanding.current = false;
+                isTracking.current = true;
                 // Phase 4: Fade blobs back in with new color
                 gsap.to(blobOpacity, {
                   current: 1,
