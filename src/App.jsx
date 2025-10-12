@@ -147,7 +147,7 @@ export default function App() {
       <BlobCursorDither
         trailCount={isMobile ? 4 : 5}
         sizes={scaledSizes}
-        opacities={isMobile ? [0.85, 0.7, 0.5, 0.35] : [0.9, 0.75, 0.55, 0.4, 0.3]}
+        opacities={isMobile ? [1, 0.85, 0.5, 0.35] : [1, 0.9, 0.55, 0.4, 0.3]}
         blurPx={scaledBlur}
         threshold={0.28}
         pixelSize={blobPixelSize}
