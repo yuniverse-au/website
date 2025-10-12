@@ -268,29 +268,16 @@ export default function BlobCursorDither({
 
     // Duplicate each side nav so layout/spacing matches the original stack
     sideNavs.forEach(nav => {
-      const rect = nav.getBoundingClientRect();
-      const computedNav = window.getComputedStyle(nav);
+  const computedNav = window.getComputedStyle(nav);
       const navClone = nav.cloneNode(true);
 
       navClone.setAttribute('data-floating-links', 'true');
       navClone.setAttribute('aria-hidden', 'true');
       navClone.style.position = 'fixed';
       navClone.style.pointerEvents = 'none';
-      navClone.style.top = `${rect.top}px`;
-      navClone.style.left = `${rect.left}px`;
-      navClone.style.width = `${rect.width}px`;
-      navClone.style.height = `${rect.height}px`;
-      navClone.style.bottom = 'auto';
-      navClone.style.right = 'auto';
-      navClone.style.margin = '0';
       navClone.style.mixBlendMode = computedNav.mixBlendMode;
       navClone.style.filter = computedNav.filter;
       navClone.style.color = computedNav.color;
-      navClone.style.display = computedNav.display;
-      navClone.style.flexDirection = computedNav.flexDirection;
-      navClone.style.justifyContent = computedNav.justifyContent;
-      navClone.style.alignItems = computedNav.alignItems;
-      navClone.style.gap = computedNav.gap;
       navClone.style.zIndex = nav.classList.contains('side-links--diff') ? '12' : '13';
 
       const anchorNodes = Array.from(navClone.querySelectorAll('.side-links__a'));
