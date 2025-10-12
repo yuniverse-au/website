@@ -7,6 +7,7 @@ export default function App() {
   const [isMobile, setIsMobile] = useState(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
   const [logoSize, setLogoSize] = useState(isMobile ? "70vw" : "40vw");
   const [ditherEnabled, setDitherEnabled] = useState(true);
+  const [ditherPaused, setDitherPaused] = useState(false);
   
   const colorSteps = isMobile ? 8 : 8;
   const waveColor = isMobile ? [0.3, 0.3, 0.3] : [0.2, 0.2, 0.2];
@@ -132,7 +133,7 @@ export default function App() {
         {ditherEnabled && (
           <Dither
             waveColor={waveColor}
-            disableAnimation={false}
+            disableAnimation={ditherPaused}
             enableMouseInteraction={false}
             mouseRadius={0.3}
             colorNum={colorSteps}
@@ -153,6 +154,7 @@ export default function App() {
         whiteCutoff={0.7}
         thresholdShift={-0.4}
         onExpansionComplete={() => setDitherEnabled(false)}
+        onExpansionStart={() => setDitherPaused(true)}
       />
 
       <svg

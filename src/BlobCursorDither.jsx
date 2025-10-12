@@ -34,7 +34,8 @@ export default function BlobCursorDither({
   pixelSize = 2,
   whiteCutoff = 0.7,
   thresholdShift = -0.4,
-  onExpansionComplete = null
+  onExpansionComplete = null,
+  onExpansionStart = null
 }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
@@ -362,11 +363,16 @@ export default function BlobCursorDither({
     
     const finalMultiplier = targetSizeWithBlur / baseSize;
     
-    // Phase 1: Expand blob to fill screen (0.6 second - faster for performance)
+    // Pause the dither background rendering during expansion for better performance
+    if (onExpansionStart) {
+      onExpansionStart();
+    }
+    
+    // Phase 1: Expand blob to fill screen (1.0 second - longer for smoother animation)
     gsap.to(expansionMultiplier, {
       current: finalMultiplier,
-      duration: 0.6,
-      ease: "power2.inOut",
+      duration: 1.0,
+      ease: "power1.inOut",
       onUpdate: () => {
         currentSizeMultiplier.current = expansionMultiplier.current;
       },
@@ -503,10 +509,12 @@ export default function BlobCursorDither({
       raf = requestAnimationFrame(loop);
       
       // Adaptive throttling based on actual render performance
-      const timeSinceLastRender = currentTime - lastRenderTime;
-      if (timeSinceLastRender < targetFrameTime) {
-        return;
-      }
+      // Skip throttling during expansion animation for maximum smoothness
+      // COMMENTED OUT: No throttling during expansion for smoother animation
+      // const timeSinceLastRender = currentTime - lastRenderTime;
+      // if (!isExpanding.current && timeSinceLastRender < targetFrameTime) {
+      //   return;
+      // }
       
       // Check if blobs are still animating by comparing current vs previous positions
       let maxMovement = 0;
@@ -561,8 +569,12 @@ export default function BlobCursorDither({
       const maxR = Math.max(...sizes) * DPR * currentSizeMultiplier.current;
       
       // Performance optimization: when expanding to huge size, reduce quality temporarily
+      // But keep it smoother during expansion animation by using less aggressive downsampling
       const isHugeExpansion = currentSizeMultiplier.current > 10;
-      const renderGrid = isHugeExpansion ? grid * 2 : grid; // Double pixel size when huge
+      const isExpansionActive = isExpanding.current;
+      // During expansion, increase pixel size dramatically to improve performance and smoothness
+      // The blob fills the screen anyway, so lower quality is less noticeable
+      const renderGrid = isExpansionActive && isHugeExpansion ? grid * 8 : (isHugeExpansion ? grid * 2 : grid);
       
       // Optimize: batch drawing operations
       dctx.globalCompositeOperation = 'source-over';
@@ -593,9 +605,9 @@ export default function BlobCursorDither({
 
       // 2) blur by drawing drawCan → blurCan with filter ON
       bctx.clearRect(0, 0, bcan.width, bcan.height);
-      // Reduce blur during huge expansion for performance
-      const effectiveBlur = isHugeExpansion ? blurPx * 0.5 : blurPx;
-      bctx.filter = `blur(${effectiveBlur * DPR * blurScale}px)`;
+      // NO BLUR during huge expansion for maximum performance and smoothness
+      const effectiveBlur = isHugeExpansion ? 0 : blurPx;
+      bctx.filter = effectiveBlur > 0 ? `blur(${effectiveBlur * DPR * blurScale}px)` : "none";
       bctx.drawImage(dcan, 0, 0);
       bctx.filter = "none";
 
@@ -654,22 +666,25 @@ export default function BlobCursorDither({
       const renderEndTime = performance.now();
       const frameTime = renderEndTime - renderStartTime;
       
-      frameTimeBuffer.push(frameTime);
-      if (frameTimeBuffer.length > bufferSize) {
-        frameTimeBuffer.shift();
-      }
-      
-      // Calculate average frame time
-      if (frameTimeBuffer.length === bufferSize) {
-        const avgFrameTime = frameTimeBuffer.reduce((a, b) => a + b, 0) / bufferSize;
+      // Don't adjust performance targets during expansion animation
+      if (!isExpanding.current) {
+        frameTimeBuffer.push(frameTime);
+        if (frameTimeBuffer.length > bufferSize) {
+          frameTimeBuffer.shift();
+        }
         
-        // If we're consistently taking too long, reduce target FPS
-        if (avgFrameTime > targetFrameTime * 1.2) {
-          targetFrameTime = Math.min(maxFrameTime, targetFrameTime * 1.1);
-        } 
-        // If we have headroom, increase target FPS back towards 30fps
-        else if (avgFrameTime < targetFrameTime * 0.8) {
-          targetFrameTime = Math.max(minFrameTime, targetFrameTime * 0.95);
+        // Calculate average frame time
+        if (frameTimeBuffer.length === bufferSize) {
+          const avgFrameTime = frameTimeBuffer.reduce((a, b) => a + b, 0) / bufferSize;
+          
+          // If we're consistently taking too long, reduce target FPS
+          if (avgFrameTime > targetFrameTime * 1.2) {
+            targetFrameTime = Math.min(maxFrameTime, targetFrameTime * 1.1);
+          } 
+          // If we have headroom, increase target FPS back towards 30fps
+          else if (avgFrameTime < targetFrameTime * 0.8) {
+            targetFrameTime = Math.max(minFrameTime, targetFrameTime * 0.95);
+          }
         }
       }
       
