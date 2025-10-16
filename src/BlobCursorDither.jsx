@@ -17,6 +17,11 @@ const BAYER_8_NORM = BAYER_8.map(row => row.map(v => v / 64));
 
 // Keep padding configurable in one place so the canvas can draw past the viewport edge
 const CANVAS_PADDING = 150;
+const MAX_AUTO_RESOLUTION = 8;
+const AUTO_RESOLUTION_STEP = 0.5;
+const BLUR_MIN_SCALE = 0.35;
+const BLUR_STEP_DOWN = 0.15;
+const BLUR_STEP_UP = 0.1;
 
 export default function BlobCursorDither({
   trailCount = 4,
@@ -45,7 +50,6 @@ export default function BlobCursorDither({
   const blurCtxRef = useRef(null);
   // Reduce DPR further for better performance - cap at 1.5x
   const DPRRef = useRef(Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)));
-  const isTracking = useRef(true);
 
   // points animated by GSAP
   const points = useRef(
@@ -75,14 +79,23 @@ export default function BlobCursorDither({
   const expansionMultiplier = useRef(1);
   const colorTransition = useRef({ r: 0, g: 0, b: 0 });
   const blobOpacity = useRef(1); // Control blob visibility during transition
+  const isBlobDisabled = useRef(false);
+  const resolutionMultiplier = useRef(1); // Smoothly adjust render resolution during transitions
+  const resolutionTween = useRef(null);
+  const autoResolutionMultiplier = useRef(1); // Automatic performance-driven resolution scaling
+  const autoResolutionTween = useRef(null);
+  const temporarilyReenabled = useRef(false);
+  const slowFrameDebtRef = useRef(0);
+  const fastFrameStreakRef = useRef(0);
+  const blurScaleRef = useRef(1);
+  const blurScaleTween = useRef(null);
 
   // Quick tweens to avoid re-creating on every move
   const quickX = useRef([]);
   const quickY = useRef([]);
   
   // Track last movement direction for off-screen animation
-  const lastVelocity = useRef({ x: 0, y: 0 });
-  const lastMousePos = useRef({ x: 0, y: 0 });
+  const pendingFadeOut = useRef(false);
 
   const resize = useCallback(() => {
     // Cap DPR more aggressively for performance
@@ -117,17 +130,69 @@ export default function BlobCursorDither({
     blurCtxRef.current = blurCan.getContext("2d", { willReadFrequently: true, alpha: true });
   }, []);
 
-  const onMove = useCallback((e) => {
-    if (!isTracking.current) {
-      return;
+  const disableBlob = useCallback(() => {
+    if (isBlobDisabled.current) return;
+
+    isBlobDisabled.current = true;
+    temporarilyReenabled.current = false;
+    gsap.killTweensOf(blobOpacity);
+    gsap.killTweensOf(resolutionMultiplier);
+    gsap.killTweensOf(autoResolutionMultiplier);
+    gsap.killTweensOf(blurScaleRef);
+    resolutionTween.current?.kill();
+    resolutionTween.current = null;
+    autoResolutionTween.current?.kill();
+    autoResolutionTween.current = null;
+    blurScaleTween.current?.kill();
+    blurScaleTween.current = null;
+    blobOpacity.current = 0;
+    resolutionMultiplier.current = 1;
+    autoResolutionMultiplier.current = 1;
+    blurScaleRef.current = 1;
+    slowFrameDebtRef.current = 0;
+    fastFrameStreakRef.current = 0;
+
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext("2d");
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
     }
+  }, []);
+
+  const fadeOutBlobs = useCallback(() => {
+    if (isBlobDisabled.current) return;
+    gsap.killTweensOf(blobOpacity);
+    gsap.to(blobOpacity, {
+      current: 0,
+      duration: 1,
+      ease: "power2.out"
+    });
+  }, []);
+
+  const fadeInBlobs = useCallback(() => {
+    if (isBlobDisabled.current) return;
+    pendingFadeOut.current = false;
+    gsap.killTweensOf(blobOpacity);
+    gsap.to(blobOpacity, {
+      current: 1,
+      duration: 0.5,
+      ease: "power2.out"
+    });
+  }, []);
+
+  const onMove = useCallback((e) => {
+    if (isBlobDisabled.current) return;
+
     const DPR = DPRRef.current;
     const padding = CANVAS_PADDING; // Must match padding in resize()
     let x = "clientX" in e ? e.clientX : e.touches?.[0]?.clientX || 0;
     let y = "clientY" in e ? e.clientY : e.touches?.[0]?.clientY || 0;
 
-    // Skip magnetism and size effects if expansion animation is active
-    if (!isExpanding.current) {
+    // Check if we're on a subpage (hash route like #about, #linkone, etc.)
+    const isOnSubpage = window.location.hash && window.location.hash.length > 1;
+
+    // Skip magnetism and size effects if expansion animation is active OR on a subpage
+    if (!isExpanding.current && !isOnSubpage) {
       // Check for link magnetism
       let closestLink = null;
       let minDist = magnetStrength;
@@ -177,6 +242,16 @@ export default function BlobCursorDither({
       } else if (!isOverLink.current && wasOverLink) {
         gsap.to(currentSizeMultiplier, { current: 1, duration: 0.3, ease: "power2.out" });
       }
+    } else if (isOnSubpage) {
+      // Reset size multiplier when on subpage
+      if (isOverLink.current) {
+        isOverLink.current = false;
+        gsap.to(currentSizeMultiplier, { current: 1, duration: 0.3, ease: "power2.out" });
+      }
+    }
+
+    if (!isExpanding.current && blobOpacity.current < 1) {
+      fadeInBlobs();
     }
 
     // Skip if movement is too small (< 2px) - reduces unnecessary updates
@@ -190,82 +265,80 @@ export default function BlobCursorDither({
       return;
     }
     
-    // Track velocity for off-screen animation
-    const deltaX = scaledX - lastMousePos.current.x;
-    const deltaY = scaledY - lastMousePos.current.y;
-    lastVelocity.current = { x: deltaX, y: deltaY };
-    lastMousePos.current = { x: scaledX, y: scaledY };
-
     points.current.forEach((p, i) => {
       quickX.current[i](scaledX);
       quickY.current[i](scaledY);
     });
-  }, [sizes]);
+  }, [sizes, fadeInBlobs]);
 
   const onLeave = useCallback(() => {
-    if (!isTracking.current) {
+    if (isExpanding.current) {
+      pendingFadeOut.current = true;
       return;
     }
-    const DPR = DPRRef.current;
-    const c = canvasRef.current;
-    if (!c) return;
-    
-    // Calculate off-screen position based on last movement direction
-    const { x: vx, y: vy } = lastVelocity.current;
-    const { x: lastX, y: lastY } = lastMousePos.current;
-    
-    // If no velocity, exit towards nearest edge
-    let exitX = lastX;
-    let exitY = lastY;
-    
-    if (Math.abs(vx) > 1 || Math.abs(vy) > 1) {
-      // Use velocity to determine exit direction
-      const magnitude = Math.sqrt(vx * vx + vy * vy);
-      const normalizedVx = vx / magnitude;
-      const normalizedVy = vy / magnitude;
-      
-      // Project off-screen at a reasonable distance
-      exitX = lastX + normalizedVx * 800 * DPR;
-      exitY = lastY + normalizedVy * 800 * DPR;
-    } else {
-      // No clear direction, exit towards nearest edge
-      const distToLeft = lastX;
-      const distToRight = c.width - lastX;
-      const distToTop = lastY;
-      const distToBottom = c.height - lastY;
-      const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
-      
-      if (minDist === distToLeft) exitX = -800 * DPR;
-      else if (minDist === distToRight) exitX = c.width + 800 * DPR;
-      else if (minDist === distToTop) exitY = -800 * DPR;
-      else exitY = c.height + 800 * DPR;
-    }
-    
-    // Animate all points off-screen with a smooth ease
-    points.current.forEach((p, i) => {
-      gsap.to(p, {
-        x: exitX,
-        y: exitY,
-        duration: 1.0, // Balanced duration for smooth exit
-        ease: "power1.out" // Gentler ease for smoother exit
-      });
-    });
-  }, []);
+
+    fadeOutBlobs();
+  }, [fadeOutBlobs]);
 
   const onEnter = useCallback(() => {
+    pendingFadeOut.current = false;
+
     // Kill any ongoing exit animations
     points.current.forEach((p) => {
       gsap.killTweensOf(p);
     });
-  }, []);
+
+    if (!isExpanding.current) {
+      fadeInBlobs();
+    }
+  }, [fadeInBlobs]);
 
   const handleLinkClick = useCallback((e) => {
-    e.preventDefault();
     if (isExpanding.current) return;
+
+    const wasBlobDisabled = isBlobDisabled.current;
+
+    e.preventDefault();
+
+    if (wasBlobDisabled) {
+      isBlobDisabled.current = false;
+      temporarilyReenabled.current = true;
+      gsap.killTweensOf(blobOpacity);
+      blobOpacity.current = 1;
+      resolutionTween.current?.kill();
+      resolutionTween.current = null;
+      autoResolutionTween.current?.kill();
+      autoResolutionTween.current = null;
+      blurScaleTween.current?.kill();
+      blurScaleTween.current = null;
+      gsap.killTweensOf(blurScaleRef);
+      resolutionMultiplier.current = 1;
+      autoResolutionMultiplier.current = 1;
+      blurScaleRef.current = 1;
+      slowFrameDebtRef.current = 0;
+      fastFrameStreakRef.current = 0;
+    } else {
+      temporarilyReenabled.current = false;
+    }
+
+    isExpanding.current = true;
+    const targetUrl = e.currentTarget.href;
     
-  isExpanding.current = true;
-  isTracking.current = false;
-  const targetUrl = e.currentTarget.href;
+    // Begin degrading resolution before the visual expansion fully kicks in
+    resolutionTween.current?.kill();
+    resolutionTween.current = gsap.to(resolutionMultiplier, {
+      current: 6,
+      duration: 0.5,
+      ease: "power2.out"
+    });
+
+    // Freeze blob position - stop tracking cursor
+    const frozenPositions = points.current.map(p => ({ x: p.x, y: p.y }));
+    points.current.forEach((p, i) => {
+      gsap.killTweensOf(p);
+      p.x = frozenPositions[i].x;
+      p.y = frozenPositions[i].y;
+    });
     
     // Remove any previous floating overlays
     document.querySelectorAll('[data-floating-link="true"],[data-floating-links="true"]').forEach(node => {
@@ -310,8 +383,10 @@ export default function BlobCursorDither({
         span.style.color = anchorStyles.color;
         span.style.textDecoration = 'none';
 
-        // Only the clicked link stays visible; others reserve space but remain transparent
-        span.style.opacity = anchor.href === targetUrl ? '1' : '0';
+  // Only the clicked link stays visible; others reserve space but stay hidden
+  const isTarget = anchor.href === targetUrl;
+  span.style.opacity = isTarget ? '1' : '0';
+  span.style.visibility = isTarget ? 'visible' : 'hidden';
 
         anchor.replaceWith(span);
       });
@@ -402,33 +477,70 @@ export default function BlobCursorDither({
                 currentSizeMultiplier.current = expansionMultiplier.current;
               },
               onComplete: () => {
-                // Resume cursor tracking before blobs fade back in
-                isExpanding.current = false;
-                isTracking.current = true;
-                // Phase 4: Fade blobs back in with new color
-                gsap.to(blobOpacity, {
+                // Ease resolution back to normal while the blob is hidden
+                resolutionTween.current?.kill();
+                resolutionTween.current = gsap.to(resolutionMultiplier, {
                   current: 1,
-                  duration: 0.8,
-                  ease: "power2.inOut",
-                  onComplete: () => {
-                    // Navigate to the target URL
+                  duration: 0.6,
+                  ease: "power2.inOut"
+                });
+
+                // Phase 4: Resume cursor tracking and ensure rendering before fade-in
+                isExpanding.current = false; // Allow cursor tracking to resume
+                
+                // Check if cursor left during expansion
+                if (pendingFadeOut.current) {
+                  pendingFadeOut.current = false;
+                  if (temporarilyReenabled.current) {
+                    disableBlob();
+                    temporarilyReenabled.current = false;
+                  }
+                  fadeOutBlobs();
+                  setTimeout(() => {
                     window.location.href = targetUrl;
-                    // Clean up floating link overlays if navigation stays on the same page
+                  }, 1000);
+                  return;
+                }
+                
+                // Wait a brief moment for cursor position to update, then fade blobs back in
+                setTimeout(() => {
+                  if (temporarilyReenabled.current) {
+                    disableBlob();
+                    temporarilyReenabled.current = false;
+                    window.location.href = targetUrl;
                     requestAnimationFrame(() => {
                       if (wrapRef.current) {
                         wrapRef.current.style.zIndex = String(zIndex);
                       }
                       document.querySelectorAll('[data-floating-link="true"]').forEach(node => node.remove());
                     });
+                    return;
                   }
-                });
+
+                  gsap.to(blobOpacity, {
+                    current: 1,
+                    duration: 0.8,
+                    ease: "power2.inOut",
+                    onComplete: () => {
+                      // Navigate to the target URL
+                      window.location.href = targetUrl;
+                      // Clean up floating link overlays if navigation stays on the same page
+                      requestAnimationFrame(() => {
+                        if (wrapRef.current) {
+                          wrapRef.current.style.zIndex = String(zIndex);
+                        }
+                        document.querySelectorAll('[data-floating-link="true"]').forEach(node => node.remove());
+                      });
+                    }
+                  });
+                }, 50); // Small delay to let cursor tracking resume
               }
             });
           }
         });
       }
     });
-  }, [sizes, onExpansionComplete, blurPx, zIndex]);
+  }, [sizes, onExpansionComplete, blurPx, zIndex, fadeOutBlobs, disableBlob]);
 
   useEffect(() => {
     resize();
@@ -486,16 +598,7 @@ export default function BlobCursorDither({
     let raf = 0;
     let lastMoveTime = performance.now();
     let isMoving = false;
-    let idleTimer = null;
-    let isExiting = false; // Track if we're in exit animation
-    
-    // Adaptive performance: track frame times and skip frames if needed
-    let lastRenderTime = 0;
-    let targetFrameTime = 1000 / 30; // Start at 30fps
-    const minFrameTime = 1000 / 30; // 30fps
-    const maxFrameTime = 1000 / 20; // 20fps fallback
-    let frameTimeBuffer = []; // Track last few frame times
-    const bufferSize = 5;
+  let idleTimer = null;
     
     // Track if animations are still settling
     const settlementThreshold = 0.5; // pixels - if all blobs move less than this, consider settled
@@ -505,14 +608,10 @@ export default function BlobCursorDither({
     
     const loop = (currentTime) => {
       raf = requestAnimationFrame(loop);
-      
-      // Adaptive throttling based on actual render performance
-      // Skip throttling during expansion animation for maximum smoothness
-      // COMMENTED OUT: No throttling during expansion for smoother animation
-      // const timeSinceLastRender = currentTime - lastRenderTime;
-      // if (!isExpanding.current && timeSinceLastRender < targetFrameTime) {
-      //   return;
-      // }
+
+      if (isBlobDisabled.current) {
+        return;
+      }
       
       // Check if blobs are still animating by comparing current vs previous positions
       let maxMovement = 0;
@@ -540,10 +639,11 @@ export default function BlobCursorDither({
         isSettled = false;
       }
       
-      // Only render if cursor moved recently OR animations are still settling OR expanding
+      // Only render if cursor moved recently OR animations are still settling OR expanding OR fading
       const timeSinceMove = currentTime - lastMoveTime;
-      if (timeSinceMove > 100 && !isMoving && isSettled && !isExiting && !isExpanding.current) {
-        return; // Skip rendering when everything is settled and not exiting or expanding
+      const isFading = blobOpacity.current > 0 && blobOpacity.current < 1;
+      if (timeSinceMove > 100 && !isMoving && isSettled && !isExpanding.current && !isFading) {
+        return; // Skip rendering when everything is settled and not exiting or expanding or fading
       }
       
       // Measure render time for adaptive performance
@@ -564,25 +664,48 @@ export default function BlobCursorDither({
 
       dctx.clearRect(0, 0, dcan.width, dcan.height);
 
-      const maxR = Math.max(...sizes) * DPR * currentSizeMultiplier.current;
-      
+      const blurRadiusScale = 0.75 + 0.25 * blurScaleRef.current;
+      let activeTrailCount = trailCount;
+      if (autoResolutionMultiplier.current >= 4 && trailCount > 3) {
+        activeTrailCount = trailCount - 1;
+      }
+      if (autoResolutionMultiplier.current >= 6 && trailCount > 2) {
+        activeTrailCount = trailCount - 2;
+      }
+      const sizesForBounds = sizes.slice(0, activeTrailCount);
+      const maxSizeForBounds = sizesForBounds.length ? Math.max(...sizesForBounds) : Math.max(...sizes);
+      const maxR = maxSizeForBounds * DPR * currentSizeMultiplier.current * blurRadiusScale;
+
       // Performance optimization: when expanding to huge size, reduce quality temporarily
       // But keep it smoother during expansion animation by using less aggressive downsampling
-      const isHugeExpansion = currentSizeMultiplier.current > 10;
-      const isExpansionActive = isExpanding.current;
-      // During expansion, increase pixel size dramatically to improve performance and smoothness
-      // The blob fills the screen anyway, so lower quality is less noticeable
-      const renderGrid = isExpansionActive && isHugeExpansion ? grid * 8 : (isHugeExpansion ? grid * 2 : grid);
+      const rawMultiplier = currentSizeMultiplier.current;
+      const isHugeExpansion = rawMultiplier > 10;
+      const combinedResolutionMultiplier = Math.max(1, resolutionMultiplier.current, autoResolutionMultiplier.current);
+      let renderGrid = grid * combinedResolutionMultiplier;
+
+      if (isExpanding.current) {
+        // Ensure we never go above our targeted degradation bands during the swell
+        if (rawMultiplier < 2.5) {
+          renderGrid = Math.max(renderGrid, grid * 4);
+        } else if (rawMultiplier < 10) {
+          renderGrid = Math.max(renderGrid, grid * 6);
+        } else {
+          renderGrid = Math.max(renderGrid, grid * 8);
+        }
+      } else if (isHugeExpansion) {
+        renderGrid = Math.max(renderGrid, grid * 2);
+      }
       
       // Optimize: batch drawing operations
       dctx.globalCompositeOperation = 'source-over';
       
       // Draw blobs on the smaller canvas
       for (let i = 0; i < trailCount; i++) {
+        if (i >= activeTrailCount) break;
         const p = points.current[i];
         if (p.x < -9000) continue;
         const baseSize = sizes[i] || sizes[sizes.length - 1];
-        const R = baseSize * DPR * blurScale * 0.5 * currentSizeMultiplier.current;
+        const R = baseSize * DPR * blurScale * 0.5 * currentSizeMultiplier.current * blurRadiusScale;
         const scaledX = p.x * blurScale;
         const scaledY = p.y * blurScale;
         
@@ -601,19 +724,22 @@ export default function BlobCursorDither({
       
       dctx.globalAlpha = 1;
 
-      // 2) blur by drawing drawCan → blurCan with filter ON
-      bctx.clearRect(0, 0, bcan.width, bcan.height);
-      // NO BLUR during huge expansion for maximum performance and smoothness
-      const effectiveBlur = isHugeExpansion ? 0 : blurPx;
-      bctx.filter = effectiveBlur > 0 ? `blur(${effectiveBlur * DPR * blurScale}px)` : "none";
+  // 2) blur by drawing drawCan → blurCan with filter ON
+  bctx.clearRect(0, 0, bcan.width, bcan.height);
+  // NO BLUR during huge expansion for maximum performance and smoothness
+  const dynamicBlurPx = blurPx * blurScaleRef.current;
+  const effectiveBlur = isHugeExpansion || dynamicBlurPx < 0.75 ? 0 : dynamicBlurPx;
+  bctx.filter = effectiveBlur > 0 ? `blur(${effectiveBlur * DPR * blurScale}px)` : "none";
       bctx.drawImage(dcan, 0, 0);
       bctx.filter = "none";
 
       // 3) Calculate bounds for sampling (on full-res canvas)
-      const minX = Math.max(0, Math.min(...points.current.map(p => p.x)) - maxR);
-      const maxX = Math.min(c.width, Math.max(...points.current.map(p => p.x)) + maxR);
-      const minY = Math.max(0, Math.min(...points.current.map(p => p.y)) - maxR);
-      const maxY = Math.min(c.height, Math.max(...points.current.map(p => p.y)) + maxR);
+  const relevantPoints = points.current.slice(0, activeTrailCount);
+  const pointsForBounds = relevantPoints.length ? relevantPoints : points.current;
+  const minX = Math.max(0, Math.min(...pointsForBounds.map(p => p.x)) - maxR);
+  const maxX = Math.min(c.width, Math.max(...pointsForBounds.map(p => p.x)) + maxR);
+  const minY = Math.max(0, Math.min(...pointsForBounds.map(p => p.y)) - maxR);
+  const maxY = Math.min(c.height, Math.max(...pointsForBounds.map(p => p.y)) + maxR);
       
       const startX = Math.floor(minX / renderGrid) * renderGrid;
       const endX = Math.ceil(maxX / renderGrid) * renderGrid;
@@ -660,41 +786,123 @@ export default function BlobCursorDither({
         }
       }
       
-      // Adaptive performance: measure frame time and adjust target FPS
-      const renderEndTime = performance.now();
-      const frameTime = renderEndTime - renderStartTime;
-      
-      // Don't adjust performance targets during expansion animation
+    // Adaptive performance: measure frame time and adjust target FPS
+    const renderEndTime = performance.now();
+    const frameTime = renderEndTime - renderStartTime;
+
+  const fastRecoveryDuration = 1000 / 45; // ~45fps threshold to recover faster
+    const frameDebtThreshold = 65; // milliseconds before we consider frame too slow
+      const frameDebtMax = 6;
+      const frameRecoveryMax = 8;
+
       if (!isExpanding.current) {
-        frameTimeBuffer.push(frameTime);
-        if (frameTimeBuffer.length > bufferSize) {
-          frameTimeBuffer.shift();
+        if (frameTime > frameDebtThreshold) {
+          slowFrameDebtRef.current = Math.min(frameDebtMax, slowFrameDebtRef.current + 1);
+          fastFrameStreakRef.current = Math.max(0, fastFrameStreakRef.current - 1);
+        } else if (frameTime < fastRecoveryDuration) {
+          fastFrameStreakRef.current = Math.min(frameRecoveryMax, fastFrameStreakRef.current + 1);
+          slowFrameDebtRef.current = Math.max(0, slowFrameDebtRef.current - 1);
+        } else {
+          slowFrameDebtRef.current = Math.max(0, slowFrameDebtRef.current - 1);
+          fastFrameStreakRef.current = Math.max(0, fastFrameStreakRef.current - 1);
         }
-        
-        // Calculate average frame time
-        if (frameTimeBuffer.length === bufferSize) {
-          const avgFrameTime = frameTimeBuffer.reduce((a, b) => a + b, 0) / bufferSize;
-          
-          // If we're consistently taking too long, reduce target FPS
-          if (avgFrameTime > targetFrameTime * 1.2) {
-            targetFrameTime = Math.min(maxFrameTime, targetFrameTime * 1.1);
-          } 
-          // If we have headroom, increase target FPS back towards 30fps
-          else if (avgFrameTime < targetFrameTime * 0.8) {
-            targetFrameTime = Math.max(minFrameTime, targetFrameTime * 0.95);
+
+        if (slowFrameDebtRef.current >= frameDebtMax) {
+          const resolutionMaxed = autoResolutionMultiplier.current >= MAX_AUTO_RESOLUTION - 0.001;
+          const blurAtFloor = blurScaleRef.current <= BLUR_MIN_SCALE + 0.01;
+
+          if (resolutionMaxed && blurAtFloor) {
+            disableBlob();
+            return;
           }
+
+          if (!resolutionMaxed) {
+            const nextMultiplier = Math.min(MAX_AUTO_RESOLUTION, autoResolutionMultiplier.current + AUTO_RESOLUTION_STEP);
+            if (nextMultiplier > autoResolutionMultiplier.current + 0.001) {
+              autoResolutionTween.current?.kill();
+              autoResolutionTween.current = null;
+              autoResolutionTween.current = gsap.to(autoResolutionMultiplier, {
+                current: nextMultiplier,
+                duration: 0.3,
+                ease: "power2.out",
+                onComplete: () => {
+                  autoResolutionTween.current = null;
+                }
+              });
+            }
+          }
+
+          if (!blurAtFloor) {
+            blurScaleTween.current?.kill();
+            blurScaleTween.current = gsap.to(blurScaleRef, {
+              current: Math.max(BLUR_MIN_SCALE, blurScaleRef.current - BLUR_STEP_DOWN),
+              duration: 0.35,
+              ease: "power2.out",
+              onComplete: () => {
+                blurScaleTween.current = null;
+              }
+            });
+          }
+
+          slowFrameDebtRef.current = 0;
+          fastFrameStreakRef.current = 0;
+        }
+
+        if (fastFrameStreakRef.current >= frameRecoveryMax) {
+          if (autoResolutionMultiplier.current > 1) {
+            const nextMultiplier = Math.max(1, autoResolutionMultiplier.current - AUTO_RESOLUTION_STEP);
+            if (nextMultiplier < autoResolutionMultiplier.current - 0.001) {
+              autoResolutionTween.current?.kill();
+              autoResolutionTween.current = null;
+              autoResolutionTween.current = gsap.to(autoResolutionMultiplier, {
+                current: nextMultiplier,
+                duration: 0.4,
+                ease: "power2.inOut",
+                onComplete: () => {
+                  autoResolutionTween.current = null;
+                }
+              });
+            }
+          }
+
+          if (blurScaleRef.current < 1 - 0.01) {
+            blurScaleTween.current?.kill();
+            blurScaleTween.current = gsap.to(blurScaleRef, {
+              current: Math.min(1, blurScaleRef.current + BLUR_STEP_UP),
+              duration: 0.45,
+              ease: "power2.inOut",
+              onComplete: () => {
+                blurScaleTween.current = null;
+              }
+            });
+          }
+
+          fastFrameStreakRef.current = 0;
+          slowFrameDebtRef.current = 0;
         }
       }
-      
-      lastRenderTime = currentTime;
+
+      // Disable the blob if render time becomes extreme when already maxed out and not expanding
+      if (
+        !isExpanding.current &&
+        autoResolutionMultiplier.current >= MAX_AUTO_RESOLUTION - 0.001 &&
+        blurScaleRef.current <= BLUR_MIN_SCALE + 0.01 &&
+        frameTime > frameDebtThreshold * 3
+      ) {
+        disableBlob();
+        return;
+      }
     };
 
     // Track mouse movement to conditionally render
     const originalOnMove = onMove;
     const wrappedOnMove = (e) => {
+      if (isBlobDisabled.current) {
+        return;
+      }
+
       lastMoveTime = performance.now();
       isMoving = true;
-      isExiting = false; // Cancel exit if mouse moves
       isSettled = false; // Reset settlement when mouse moves
       settledFrameCount = 0;
       clearTimeout(idleTimer);
@@ -703,35 +911,28 @@ export default function BlobCursorDither({
       }, 100);
       
       // Kill any exit animations when mouse moves
-      if (isExiting) {
-        points.current.forEach((p) => {
-          gsap.killTweensOf(p);
-        });
+      if (!isExpanding.current && blobOpacity.current < 1) {
+        fadeInBlobs();
       }
-      
+
       originalOnMove(e);
     };
     
     // Wrap onLeave to set exit flag
     const originalOnLeave = onLeave;
     const wrappedOnLeave = () => {
-      isExiting = true;
       isSettled = false; // Keep rendering during exit
       originalOnLeave();
-      
-      // After exit animation duration, mark as complete
-      setTimeout(() => {
-        isExiting = false;
-        isSettled = true;
-      }, 1100); // Slightly longer than animation (1.0s)
     };
     
-    window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("touchmove", onMove);
+  window.removeEventListener("pointermove", onMove);
+  window.removeEventListener("touchstart", onMove);
+  window.removeEventListener("touchmove", onMove);
     window.removeEventListener("mouseleave", onLeave);
     document.documentElement.removeEventListener("mouseleave", onLeave);
     
     window.addEventListener("pointermove", wrappedOnMove, { passive: true });
+  window.addEventListener("touchstart", wrappedOnMove, { passive: true });
     window.addEventListener("touchmove", wrappedOnMove, { passive: true });
     window.addEventListener("mouseleave", wrappedOnLeave);
     document.documentElement.addEventListener("mouseleave", wrappedOnLeave);
@@ -753,11 +954,14 @@ export default function BlobCursorDither({
       window.removeEventListener("mouseleave", wrappedOnLeave);
       window.removeEventListener("mouseenter", onEnter);
       document.documentElement.removeEventListener("mouseleave", wrappedOnLeave);
+      resolutionTween.current?.kill();
+      autoResolutionTween.current?.kill();
+      blurScaleTween.current?.kill();
     };
   }, [
     resize, onMove, onLeave, handleLinkClick, trailCount, sizes, opacities,
-    blurPx, threshold, colorNum, pixelSize, whiteCutoff, thresholdShift,
-    fastDuration, slowDuration, fastEase, slowEase
+      blurPx, threshold, colorNum, pixelSize, whiteCutoff, thresholdShift, fadeInBlobs,
+    fastDuration, slowDuration, fastEase, slowEase, disableBlob
   ]);
 
   return (

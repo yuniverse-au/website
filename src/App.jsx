@@ -8,6 +8,17 @@ export default function App() {
   const [logoSize, setLogoSize] = useState(isMobile ? "70vw" : "40vw");
   const [ditherEnabled, setDitherEnabled] = useState(true);
   const [ditherPaused, setDitherPaused] = useState(false);
+  const [ditherReady, setDitherReady] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  });
+
+  useEffect(() => {
+    if (window.location.hash) {
+      const baseUrl = window.location.origin + window.location.pathname;
+      window.location.replace(baseUrl);
+    }
+  }, []);
   
   const colorSteps = isMobile ? 8 : 8;
   const waveColor = isMobile ? [0.3, 0.3, 0.3] : [0.2, 0.2, 0.2];
@@ -55,6 +66,37 @@ export default function App() {
   const baseSizes = isMobile ? [900, 675, 450, 270] : [800, 550, 400, 280, 120];
   const scaledSizes = baseSizes.map(size => Math.round(size * blobScale));
   const scaledBlur = Math.round((isMobile ? 65 : 82) * blobScale);
+
+  useEffect(() => {
+    if (ditherReady) return;
+
+    const reduceMotionQuery = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+    if (reduceMotionQuery?.matches) {
+      setDitherReady(true);
+      return;
+    }
+
+    const overlay = document.querySelector(".preload-reveal");
+    if (!overlay) {
+      setDitherReady(true);
+      return;
+    }
+
+    let fallbackId = window.setTimeout(() => setDitherReady(true), 4500);
+
+    const handleAnimationEnd = event => {
+      if (event.animationName === "colorShift") {
+        window.clearTimeout(fallbackId);
+        setDitherReady(true);
+      }
+    };
+
+    overlay.addEventListener("animationend", handleAnimationEnd);
+    return () => {
+      overlay.removeEventListener("animationend", handleAnimationEnd);
+      window.clearTimeout(fallbackId);
+    };
+  }, [ditherReady]);
 
   useEffect(() => {
     const real = document.getElementById("site-logo");
@@ -130,7 +172,7 @@ export default function App() {
       </div>
 
       <div className="layer">
-        {ditherEnabled && (
+        {ditherReady && ditherEnabled && (
           <Dither
             waveColor={waveColor}
             disableAnimation={ditherPaused}
@@ -144,18 +186,20 @@ export default function App() {
         )}
       </div>
 
-      <BlobCursorDither
-        trailCount={isMobile ? 4 : 5}
-        sizes={scaledSizes}
-        opacities={isMobile ? [1, 0.85, 0.5, 0.35] : [1, 0.9, 0.55, 0.4, 0.3]}
-        blurPx={scaledBlur}
-        threshold={0.28}
-        pixelSize={blobPixelSize}
-        whiteCutoff={0.7}
-        thresholdShift={-0.4}
-        onExpansionComplete={() => setDitherEnabled(false)}
-        onExpansionStart={() => setDitherPaused(true)}
-      />
+      {ditherReady && (
+        <BlobCursorDither
+          trailCount={isMobile ? 4 : 5}
+          sizes={scaledSizes}
+          opacities={isMobile ? [1, 0.85, 0.5, 0.35] : [1, 0.9, 0.55, 0.4, 0.3]}
+          blurPx={scaledBlur}
+          threshold={0.28}
+          pixelSize={blobPixelSize}
+          whiteCutoff={0.7}
+          thresholdShift={-0.4}
+          onExpansionComplete={() => setDitherEnabled(false)}
+          onExpansionStart={() => setDitherPaused(true)}
+        />
+      )}
 
       <svg
         id="site-logo"
@@ -179,7 +223,7 @@ export default function App() {
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 631.7 145.6"
         fill="currentColor"
-        aria-label="Yuniverse"
+        aria-label="The Yuniverse"
         className="logo logo--solid"
         style={{ width: logoSize }}
         // Logo Designer: ヨギ
