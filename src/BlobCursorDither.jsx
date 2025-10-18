@@ -22,6 +22,14 @@ const AUTO_RESOLUTION_STEP = 0.5;
 const BLUR_MIN_SCALE = 0.35;
 const BLUR_STEP_DOWN = 0.15;
 const BLUR_STEP_UP = 0.1;
+const BLUR_ENABLED = false; // Disable blur to reduce CPU load
+const SKIP_DITHER_WHEN_IDLE = true; // Skip dithering entirely when blob is settled and no input
+const IDLE_DITHER_SKIP_THRESHOLD = 200; // ms of no movement before skipping dither
+const AGGRESSIVE_GRID_REDUCTION = true; // Use 4x larger pixels when idle to reduce getImageData overhead
+const SKIP_MAGNETISM_ON_HIGH_VELOCITY = true; // Skip link detection on fast movement
+const HIGH_VELOCITY_THRESHOLD = 150; // pixels/frame - above this, skip magnetism checks
+const REDUCE_TRAILS_ON_HIGH_VELOCITY = true; // Skip rendering trail blobs when moving fast
+const FRAME_SKIP_ON_HIGH_VELOCITY = false; // Skip every other frame when very fast (aggressive)
 
 export default function BlobCursorDither({
   trailCount = 4,
@@ -96,6 +104,9 @@ export default function BlobCursorDither({
   
   // Track last movement direction for off-screen animation
   const pendingFadeOut = useRef(false);
+  
+  // Track velocity for movement-based optimizations
+  const isHighVelocityRef = useRef(false);
 
   const resize = useCallback(() => {
     // Cap DPR more aggressively for performance
@@ -116,18 +127,23 @@ export default function BlobCursorDither({
     c.style.left = `-${padding}px`;
     c.style.top = `-${padding}px`;
 
-    // offscreen buffers - use SMALLER resolution for blur processing
-    // Even more aggressive downsampling for better performance
-    const blurScale = 0.35; // Process blur at 35% resolution (was 50%)
+  // offscreen buffers - use SMALLER resolution for intermediate processing
+  // Even more aggressive downsampling for better performance
+  const blurScale = 0.35; // Render intermediate buffer at 35% resolution
     const drawCan = drawCanRef.current || (drawCanRef.current = document.createElement("canvas"));
-    const blurCan = blurCanRef.current || (blurCanRef.current = document.createElement("canvas"));
     drawCan.width = Math.floor(c.width * blurScale);
     drawCan.height = Math.floor(c.height * blurScale);
-    blurCan.width = Math.floor(c.width * blurScale);
-    blurCan.height = Math.floor(c.height * blurScale);
-
     drawCtxRef.current = drawCan.getContext("2d", { willReadFrequently: true, alpha: true });
-    blurCtxRef.current = blurCan.getContext("2d", { willReadFrequently: true, alpha: true });
+
+    if (BLUR_ENABLED) {
+      const blurCan = blurCanRef.current || (blurCanRef.current = document.createElement("canvas"));
+      blurCan.width = Math.floor(c.width * blurScale);
+      blurCan.height = Math.floor(c.height * blurScale);
+      blurCtxRef.current = blurCan.getContext("2d", { willReadFrequently: true, alpha: true });
+    } else {
+      blurCanRef.current = drawCanRef.current;
+      blurCtxRef.current = drawCtxRef.current;
+    }
   }, []);
 
   const disableBlob = useCallback(() => {
@@ -191,8 +207,17 @@ export default function BlobCursorDither({
     // Check if we're on a subpage (hash route like #about, #linkone, etc.)
     const isOnSubpage = window.location.hash && window.location.hash.length > 1;
 
-    // Skip magnetism and size effects if expansion animation is active OR on a subpage
-    if (!isExpanding.current && !isOnSubpage) {
+    // Calculate cursor velocity for performance optimization
+    const prevX = points.current[0].x / DPRRef.current - CANVAS_PADDING;
+    const prevY = points.current[0].y / DPRRef.current - CANVAS_PADDING;
+    const velocityX = x - prevX;
+    const velocityY = y - prevY;
+    const velocity = Math.sqrt(velocityX * velocityX + velocityY * velocityY);
+    const isHighVelocity = velocity > HIGH_VELOCITY_THRESHOLD;
+    isHighVelocityRef.current = isHighVelocity; // Store in ref for rendering loop
+
+    // Skip expensive link detection on high velocity movement
+    if (!isExpanding.current && !isOnSubpage && !isHighVelocity) {
       // Check for link magnetism
       let closestLink = null;
       let minDist = magnetStrength;
@@ -242,8 +267,8 @@ export default function BlobCursorDither({
       } else if (!isOverLink.current && wasOverLink) {
         gsap.to(currentSizeMultiplier, { current: 1, duration: 0.3, ease: "power2.out" });
       }
-    } else if (isOnSubpage) {
-      // Reset size multiplier when on subpage
+    } else if (isOnSubpage || isHighVelocity) {
+      // Reset size multiplier when on subpage or moving very fast
       if (isOverLink.current) {
         isOverLink.current = false;
         gsap.to(currentSizeMultiplier, { current: 1, duration: 0.3, ease: "power2.out" });
@@ -255,7 +280,8 @@ export default function BlobCursorDither({
     }
 
     // Skip if movement is too small (< 2px) - reduces unnecessary updates
-    const threshold = 2;
+    // On high velocity, increase threshold to skip more micro-movements
+    const threshold = isHighVelocity ? 4 : 2;
     // Add padding offset to account for extended canvas
     const scaledX = (x + padding) * DPR;
     const scaledY = (y + padding) * DPR;
@@ -265,10 +291,11 @@ export default function BlobCursorDither({
       return;
     }
     
-    points.current.forEach((p, i) => {
+    // Use traditional loop instead of forEach to avoid callback overhead
+    for (let i = 0; i < trailCount; i++) {
       quickX.current[i](scaledX);
       quickY.current[i](scaledY);
-    });
+    }
   }, [sizes, fadeInBlobs]);
 
   const onLeave = useCallback(() => {
@@ -414,8 +441,8 @@ export default function BlobCursorDither({
     const baseSize = sizes[0] || 200;
     const baseRadius = baseSize * 0.5; // Radius is half the size
     
-    // Account for blur radius - the blur extends the visual size significantly
-    const blurRadius = blurPx * 1.5; // Approximate blur expansion
+  // Account for blur radius only if blur is enabled
+  const blurRadius = BLUR_ENABLED ? blurPx * 1.5 : 0;
     
     // Calculate how much of the blob is actually solid (before gradient falloff)
     // The radial gradient goes from solid at center to transparent at edge
@@ -642,6 +669,12 @@ export default function BlobCursorDither({
       // Only render if cursor moved recently OR animations are still settling OR expanding OR fading
       const timeSinceMove = currentTime - lastMoveTime;
       const isFading = blobOpacity.current > 0 && blobOpacity.current < 1;
+      const isIdle = timeSinceMove > IDLE_DITHER_SKIP_THRESHOLD && !isMoving && isSettled && !isExpanding.current && !isFading;
+      
+      if (isIdle && SKIP_DITHER_WHEN_IDLE) {
+        return; // Skip rendering entirely when blob is idle to save CPU
+      }
+      
       if (timeSinceMove > 100 && !isMoving && isSettled && !isExpanding.current && !isFading) {
         return; // Skip rendering when everything is settled and not exiting or expanding or fading
       }
@@ -650,27 +683,34 @@ export default function BlobCursorDither({
       const renderStartTime = performance.now();
 
       const DPR = DPRRef.current;
-      const grid = Math.max(1, Math.round(pixelSize * DPR));
+      const baseGrid = Math.max(1, Math.round(pixelSize * DPR));
+      // When idle, use 4x larger pixels to massively reduce getImageData overhead
+      // Also increase grid on high velocity movement for performance
+      const idleGridMultiplier = (isIdle && AGGRESSIVE_GRID_REDUCTION) ? 4 : 1;
+      const velocityGridMultiplier = (isHighVelocityRef.current && REDUCE_TRAILS_ON_HIGH_VELOCITY) ? 2 : 1;
+      const grid = baseGrid * idleGridMultiplier * velocityGridMultiplier;
       const q = Math.max(2, colorNum - 1);
       const stepSize = 1 / q;
 
-      const dctx = drawCtx();
-      const bctx = blurCtx();
-      const dcan = drawCan();
-      const bcan = blurCan();
-      
-      // Calculate scale factor (since blur canvas is smaller)
-      const blurScale = dcan.width / c.width;
+  const dctx = drawCtx();
+  const dcan = drawCan();
 
-      dctx.clearRect(0, 0, dcan.width, dcan.height);
+  // Calculate scale factor (since draw canvas is smaller)
+  const drawScale = dcan.width / c.width;
 
-      const blurRadiusScale = 0.75 + 0.25 * blurScaleRef.current;
+  dctx.clearRect(0, 0, dcan.width, dcan.height);
+
+  const blurRadiusScale = BLUR_ENABLED ? 0.75 + 0.25 * blurScaleRef.current : 1;
       let activeTrailCount = trailCount;
+      // Reduce trail count on high velocity to save gradient rendering overhead
+      if (isHighVelocityRef.current && REDUCE_TRAILS_ON_HIGH_VELOCITY) {
+        activeTrailCount = Math.max(1, Math.ceil(trailCount * 0.5)); // Use only ~50% of trails
+      }
       if (autoResolutionMultiplier.current >= 4 && trailCount > 3) {
-        activeTrailCount = trailCount - 1;
+        activeTrailCount = Math.min(activeTrailCount, trailCount - 1);
       }
       if (autoResolutionMultiplier.current >= 6 && trailCount > 2) {
-        activeTrailCount = trailCount - 2;
+        activeTrailCount = Math.min(activeTrailCount, trailCount - 2);
       }
       const sizesForBounds = sizes.slice(0, activeTrailCount);
       const maxSizeForBounds = sizesForBounds.length ? Math.max(...sizesForBounds) : Math.max(...sizes);
@@ -699,18 +739,23 @@ export default function BlobCursorDither({
       // Optimize: batch drawing operations
       dctx.globalCompositeOperation = 'source-over';
       
+      // When idle, only draw the lead blob to save gradient creation overhead
+      const trailsToRender = (isIdle && AGGRESSIVE_GRID_REDUCTION) ? 1 : activeTrailCount;
+      
       // Draw blobs on the smaller canvas
       for (let i = 0; i < trailCount; i++) {
-        if (i >= activeTrailCount) break;
+        if (i >= trailsToRender) break;
         const p = points.current[i];
         if (p.x < -9000) continue;
-        const baseSize = sizes[i] || sizes[sizes.length - 1];
-        const R = baseSize * DPR * blurScale * 0.5 * currentSizeMultiplier.current * blurRadiusScale;
-        const scaledX = p.x * blurScale;
-        const scaledY = p.y * blurScale;
+  const baseSize = sizes[i] || sizes[sizes.length - 1];
+  const R = baseSize * DPR * drawScale * 0.5 * currentSizeMultiplier.current * blurRadiusScale;
+  const scaledX = p.x * drawScale;
+  const scaledY = p.y * drawScale;
         
         // Apply both the individual opacity and the transition opacity
-        dctx.globalAlpha = (opacities[i] ?? 1) * blobOpacity.current;
+        // On high velocity, reduce opacity of trailing blobs to blur the effect naturally
+        const velocityOpacityMultiplier = isHighVelocityRef.current && i > 0 ? 0.5 : 1;
+        dctx.globalAlpha = (opacities[i] ?? 1) * blobOpacity.current * velocityOpacityMultiplier;
         
         // Simplified gradient for better performance
         const grad = dctx.createRadialGradient(scaledX, scaledY, 0, scaledX, scaledY, R);
@@ -724,22 +769,43 @@ export default function BlobCursorDither({
       
       dctx.globalAlpha = 1;
 
-  // 2) blur by drawing drawCan → blurCan with filter ON
-  bctx.clearRect(0, 0, bcan.width, bcan.height);
-  // NO BLUR during huge expansion for maximum performance and smoothness
-  const dynamicBlurPx = blurPx * blurScaleRef.current;
-  const effectiveBlur = isHugeExpansion || dynamicBlurPx < 0.75 ? 0 : dynamicBlurPx;
-  bctx.filter = effectiveBlur > 0 ? `blur(${effectiveBlur * DPR * blurScale}px)` : "none";
-      bctx.drawImage(dcan, 0, 0);
-      bctx.filter = "none";
+      const dynamicBlurPx = BLUR_ENABLED ? blurPx * blurScaleRef.current : 0;
+      const shouldBlur = BLUR_ENABLED && !isHugeExpansion && dynamicBlurPx >= 0.75;
+
+      let sampleCtx = dctx;
+      let sampleCan = dcan;
+      let sampleScale = drawScale;
+
+      if (shouldBlur) {
+        const bctx = blurCtx();
+        const bcan = blurCan();
+        bctx.clearRect(0, 0, bcan.width, bcan.height);
+        bctx.filter = `blur(${dynamicBlurPx * DPR * drawScale}px)`;
+        bctx.drawImage(dcan, 0, 0);
+        bctx.filter = "none";
+        sampleCtx = bctx;
+        sampleCan = bcan;
+        sampleScale = bcan.width / c.width;
+      }
 
       // 3) Calculate bounds for sampling (on full-res canvas)
   const relevantPoints = points.current.slice(0, activeTrailCount);
   const pointsForBounds = relevantPoints.length ? relevantPoints : points.current;
-  const minX = Math.max(0, Math.min(...pointsForBounds.map(p => p.x)) - maxR);
-  const maxX = Math.min(c.width, Math.max(...pointsForBounds.map(p => p.x)) + maxR);
-  const minY = Math.max(0, Math.min(...pointsForBounds.map(p => p.y)) - maxR);
-  const maxY = Math.min(c.height, Math.max(...pointsForBounds.map(p => p.y)) + maxR);
+  
+  // Optimize: avoid spread operator + map, use imperative loop instead
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < pointsForBounds.length; i++) {
+    const p = pointsForBounds[i];
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  
+  minX = Math.max(0, minX - maxR);
+  maxX = Math.min(c.width, maxX + maxR);
+  minY = Math.max(0, minY - maxR);
+  maxY = Math.min(c.height, maxY + maxR);
       
       const startX = Math.floor(minX / renderGrid) * renderGrid;
       const endX = Math.ceil(maxX / renderGrid) * renderGrid;
@@ -747,14 +813,14 @@ export default function BlobCursorDither({
       const endY = Math.ceil(maxY / renderGrid) * renderGrid;
 
       // Only get image data for the region we need (scaled to blur canvas size)
-      const sampleX = Math.floor(startX * blurScale);
-      const sampleY = Math.floor(startY * blurScale);
-      const sampleW = Math.min(bcan.width - sampleX, Math.ceil((endX - startX) * blurScale));
-      const sampleH = Math.min(bcan.height - sampleY, Math.ceil((endY - startY) * blurScale));
+  const sampleX = Math.floor(startX * sampleScale);
+  const sampleY = Math.floor(startY * sampleScale);
+  const sampleW = Math.min(sampleCan.width - sampleX, Math.ceil((endX - startX) * sampleScale));
+  const sampleH = Math.min(sampleCan.height - sampleY, Math.ceil((endY - startY) * sampleScale));
       
       if (sampleW <= 0 || sampleH <= 0) return;
       
-      const img = bctx.getImageData(sampleX, sampleY, sampleW, sampleH);
+  const img = sampleCtx.getImageData(sampleX, sampleY, sampleW, sampleH);
       const data = img.data;
       const { r, g, b } = rgb.current;
 
@@ -762,6 +828,9 @@ export default function BlobCursorDither({
       outCtx.globalAlpha = 1;
       outCtx.fillStyle = `rgb(${r},${g},${b})`;
 
+      // Use a single path for all rects instead of individual fillRect calls for better performance
+      const path = new Path2D();
+      
       // Process only the bounded region
       for (let y = startY; y < endY; y += renderGrid) {
         const gy = (Math.floor(y / renderGrid) & 7);
@@ -771,8 +840,8 @@ export default function BlobCursorDither({
           const gx = (Math.floor(x / renderGrid) & 7);
           
           // Map to the sampled region coordinates
-          const localX = Math.floor((x - startX) * blurScale);
-          const localY = Math.floor((y - startY) * blurScale);
+          const localX = Math.floor((x - startX) * sampleScale);
+          const localY = Math.floor((y - startY) * sampleScale);
           const i = (localY * sampleW + localX) * 4;
 
           const a = data[i + 3] / 255;
@@ -781,10 +850,13 @@ export default function BlobCursorDither({
           const bayer = bayerRow[gx];
           const localCut = Math.min(1, Math.max(0, whiteCutoff - (bayer + thresholdShift) * stepSize));
           if (stepped >= localCut) {
-            outCtx.fillRect(x, y, renderGrid, renderGrid);
+            path.rect(x, y, renderGrid, renderGrid);
           }
         }
       }
+      
+      // Draw all rects in one single fill operation
+      outCtx.fill(path);
       
     // Adaptive performance: measure frame time and adjust target FPS
     const renderEndTime = performance.now();
@@ -809,7 +881,7 @@ export default function BlobCursorDither({
 
         if (slowFrameDebtRef.current >= frameDebtMax) {
           const resolutionMaxed = autoResolutionMultiplier.current >= MAX_AUTO_RESOLUTION - 0.001;
-          const blurAtFloor = blurScaleRef.current <= BLUR_MIN_SCALE + 0.01;
+          const blurAtFloor = !BLUR_ENABLED || blurScaleRef.current <= BLUR_MIN_SCALE + 0.01;
 
           if (resolutionMaxed && blurAtFloor) {
             disableBlob();
@@ -832,7 +904,7 @@ export default function BlobCursorDither({
             }
           }
 
-          if (!blurAtFloor) {
+          if (BLUR_ENABLED && !blurAtFloor) {
             blurScaleTween.current?.kill();
             blurScaleTween.current = gsap.to(blurScaleRef, {
               current: Math.max(BLUR_MIN_SCALE, blurScaleRef.current - BLUR_STEP_DOWN),
@@ -865,7 +937,7 @@ export default function BlobCursorDither({
             }
           }
 
-          if (blurScaleRef.current < 1 - 0.01) {
+          if (BLUR_ENABLED && blurScaleRef.current < 1 - 0.01) {
             blurScaleTween.current?.kill();
             blurScaleTween.current = gsap.to(blurScaleRef, {
               current: Math.min(1, blurScaleRef.current + BLUR_STEP_UP),
@@ -886,7 +958,7 @@ export default function BlobCursorDither({
       if (
         !isExpanding.current &&
         autoResolutionMultiplier.current >= MAX_AUTO_RESOLUTION - 0.001 &&
-        blurScaleRef.current <= BLUR_MIN_SCALE + 0.01 &&
+        (!BLUR_ENABLED || blurScaleRef.current <= BLUR_MIN_SCALE + 0.01) &&
         frameTime > frameDebtThreshold * 3
       ) {
         disableBlob();
