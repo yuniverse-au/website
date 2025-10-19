@@ -48,7 +48,11 @@ export default function BlobCursorDither({
   whiteCutoff = 0.7,
   thresholdShift = -0.4,
   onExpansionComplete = null,
-  onExpansionStart = null
+  onExpansionStart = null,
+  mode = "ink",
+  maskColor = "#000000",
+  clipTargetRef = null,
+  maskActivation = "always"
 }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
@@ -58,6 +62,14 @@ export default function BlobCursorDither({
   const blurCtxRef = useRef(null);
   // Reduce DPR further for better performance - cap at 1.5x
   const DPRRef = useRef(Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)));
+  const maskColorRef = useRef(maskColor);
+  const isMaskMode = mode === "mask";
+  const maskActiveRef = useRef(isMaskMode && maskActivation === "always");
+  const maskVisibleTargetRef = useRef(clipTargetRef?.current || null);
+
+  useEffect(() => {
+    maskColorRef.current = maskColor;
+  }, [maskColor]);
 
   // points animated by GSAP
   const points = useRef(
@@ -97,6 +109,26 @@ export default function BlobCursorDither({
   const fastFrameStreakRef = useRef(0);
   const blurScaleRef = useRef(1);
   const blurScaleTween = useRef(null);
+  const clipPathCacheRef = useRef("none");
+
+  useEffect(() => {
+    maskVisibleTargetRef.current = clipTargetRef?.current || null;
+    if (!isMaskMode || maskActivation !== "transition") {
+      maskActiveRef.current = isMaskMode && maskActivation === "always";
+    } else {
+      maskActiveRef.current = false;
+    }
+
+    const targetEl = clipTargetRef?.current;
+    if (!targetEl) return;
+
+    if (!isMaskMode || !maskActiveRef.current) {
+      targetEl.style.clipPath = "none";
+      targetEl.style.webkitClipPath = "none";
+      targetEl.style.opacity = "0";
+      clipPathCacheRef.current = "none";
+    }
+  }, [isMaskMode, maskActivation, clipTargetRef]);
 
   // Quick tweens to avoid re-creating on every move
   const quickX = useRef([]);
@@ -324,6 +356,7 @@ export default function BlobCursorDither({
     if (isExpanding.current) return;
 
     const wasBlobDisabled = isBlobDisabled.current;
+    const activateMaskForTransition = isMaskMode && maskActivation === "transition";
 
     e.preventDefault();
 
@@ -349,6 +382,16 @@ export default function BlobCursorDither({
     }
 
     isExpanding.current = true;
+    if (activateMaskForTransition) {
+      maskActiveRef.current = true;
+      const targetEl = clipTargetRef?.current;
+      if (targetEl) {
+        targetEl.style.opacity = "1";
+        targetEl.style.clipPath = "circle(0px at 50% 50%)";
+        targetEl.style.webkitClipPath = "circle(0px at 50% 50%)";
+        clipPathCacheRef.current = "circle(0px at 50% 50%)";
+      }
+    }
     const targetUrl = e.currentTarget.href;
     
     // Begin degrading resolution before the visual expansion fully kicks in
@@ -438,7 +481,9 @@ export default function BlobCursorDither({
     // We need the SOLID CENTER (not blurred edges) to cover the viewport diagonal
     // The solid part is roughly 40-50% of the blob radius due to gradient + blur
     // So we need to make the blob ~2.5x larger than the viewport diagonal
-    const baseSize = sizes[0] || 200;
+    // Reference the smallest blob cursor size instead of the largest
+    const smallestBlob = sizes.length > 0 ? Math.min(...sizes) : 200;
+    const baseSize = smallestBlob;
     const baseRadius = baseSize * 0.5; // Radius is half the size
     
   // Account for blur radius only if blur is enabled
@@ -465,15 +510,22 @@ export default function BlobCursorDither({
       onExpansionStart();
     }
     
-    // Phase 1: Expand blob to fill screen (1.0 second - longer for smoother animation)
+    // Phase 1: Expand blob to fill screen (1.5 second - longer for smoother animation)
     gsap.to(expansionMultiplier, {
       current: finalMultiplier,
-      duration: 1.0,
+      duration: 2.0,
       ease: "power1.inOut",
       onUpdate: () => {
         currentSizeMultiplier.current = expansionMultiplier.current;
       },
       onComplete: () => {
+        if (activateMaskForTransition && clipTargetRef?.current) {
+          maskActiveRef.current = false;
+          clipTargetRef.current.style.clipPath = "none";
+          clipTargetRef.current.style.webkitClipPath = "none";
+          clipTargetRef.current.style.opacity = "1";
+          clipPathCacheRef.current = "none";
+        }
         // Phase 2: Swap background to black and disable dither
         document.body.style.backgroundColor = '#000000';
         if (onExpansionComplete) {
@@ -645,6 +697,7 @@ export default function BlobCursorDither({
       for (let i = 0; i < trailCount; i++) {
         const curr = points.current[i];
         const prev = prevPoints.current[i];
+        if (!curr || !prev) continue;
         const dx = curr.x - prev.x;
         const dy = curr.y - prev.y;
         const movement = Math.sqrt(dx * dx + dy * dy);
@@ -669,13 +722,15 @@ export default function BlobCursorDither({
       // Only render if cursor moved recently OR animations are still settling OR expanding OR fading
       const timeSinceMove = currentTime - lastMoveTime;
       const isFading = blobOpacity.current > 0 && blobOpacity.current < 1;
+      const maskActive = isMaskMode && (maskActivation === "always" || (maskActivation === "transition" && maskActiveRef.current));
       const isIdle = timeSinceMove > IDLE_DITHER_SKIP_THRESHOLD && !isMoving && isSettled && !isExpanding.current && !isFading;
-      
-      if (isIdle && SKIP_DITHER_WHEN_IDLE) {
+      const shouldSkipIdle = SKIP_DITHER_WHEN_IDLE && !maskActive;
+
+      if (isIdle && shouldSkipIdle) {
         return; // Skip rendering entirely when blob is idle to save CPU
       }
       
-      if (timeSinceMove > 100 && !isMoving && isSettled && !isExpanding.current && !isFading) {
+      if (!maskActive && timeSinceMove > 100 && !isMoving && isSettled && !isExpanding.current && !isFading) {
         return; // Skip rendering when everything is settled and not exiting or expanding or fading
       }
       
@@ -746,7 +801,7 @@ export default function BlobCursorDither({
       for (let i = 0; i < trailCount; i++) {
         if (i >= trailsToRender) break;
         const p = points.current[i];
-        if (p.x < -9000) continue;
+        if (!p || p.x < -9000) continue;
   const baseSize = sizes[i] || sizes[sizes.length - 1];
   const R = baseSize * DPR * drawScale * 0.5 * currentSizeMultiplier.current * blurRadiusScale;
   const scaledX = p.x * drawScale;
@@ -824,12 +879,10 @@ export default function BlobCursorDither({
       const data = img.data;
       const { r, g, b } = rgb.current;
 
-      outCtx.clearRect(startX, startY, endX - startX, endY - startY);
-      outCtx.globalAlpha = 1;
-      outCtx.fillStyle = `rgb(${r},${g},${b})`;
-
-      // Use a single path for all rects instead of individual fillRect calls for better performance
-      const path = new Path2D();
+  const path = new Path2D();
+  const cssScale = 1 / DPR;
+  const shouldUpdateCircleClip = maskActive && clipTargetRef?.current;
+  const canvasRect = shouldUpdateCircleClip ? c.getBoundingClientRect() : null;
       
       // Process only the bounded region
       for (let y = startY; y < endY; y += renderGrid) {
@@ -856,7 +909,48 @@ export default function BlobCursorDither({
       }
       
       // Draw all rects in one single fill operation
+      outCtx.clearRect(startX, startY, endX - startX, endY - startY);
+      outCtx.globalAlpha = 1;
+      if (maskActive) {
+        outCtx.fillStyle = maskColorRef.current;
+      } else {
+        outCtx.fillStyle = `rgb(${r},${g},${b})`;
+      }
       outCtx.fill(path);
+
+      if (shouldUpdateCircleClip) {
+        const targetEl = clipTargetRef.current;
+        const lead = points.current[0];
+        const sizeReference = (() => {
+          if (!Array.isArray(sizes) || sizes.length === 0) return 0;
+          if (sizes.length === 1) return sizes[0];
+          const sorted = [...sizes].sort((a, b) => a - b);
+          return sorted[1] ?? sorted[0];
+        })();
+        const hasPosition = lead && lead.x > -9000 && lead.y > -9000;
+        const radius = hasPosition ? Math.max(0, (sizeReference * currentSizeMultiplier.current) / 2) : 0;
+
+        if (targetEl && radius > 0 && canvasRect) {
+          const centerX = lead.x * cssScale + canvasRect.left;
+          const centerY = lead.y * cssScale + canvasRect.top;
+          const formatPx = (value) => `${Math.round(value * 100) / 100}px`;
+          const clipValue = `circle(${formatPx(radius)} at ${formatPx(centerX)} ${formatPx(centerY)})`;
+
+          if (clipPathCacheRef.current !== clipValue) {
+            clipPathCacheRef.current = clipValue;
+            targetEl.style.clipPath = clipValue;
+            targetEl.style.webkitClipPath = clipValue;
+          }
+        } else if (clipPathCacheRef.current !== "none" && clipTargetRef?.current) {
+          clipPathCacheRef.current = "none";
+          clipTargetRef.current.style.clipPath = "none";
+          clipTargetRef.current.style.webkitClipPath = "none";
+        }
+      } else if (clipPathCacheRef.current !== "none" && clipTargetRef?.current) {
+        clipPathCacheRef.current = "none";
+        clipTargetRef.current.style.clipPath = "none";
+        clipTargetRef.current.style.webkitClipPath = "none";
+      }
       
     // Adaptive performance: measure frame time and adjust target FPS
     const renderEndTime = performance.now();
@@ -1013,6 +1107,11 @@ export default function BlobCursorDither({
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(idleTimer);
+      if (clipTargetRef?.current) {
+        clipTargetRef.current.style.clipPath = "";
+        clipTargetRef.current.style.webkitClipPath = "";
+        clipPathCacheRef.current = "";
+      }
       
       // Remove click handlers from links
       linkElements.current.forEach(link => {
@@ -1030,10 +1129,10 @@ export default function BlobCursorDither({
       autoResolutionTween.current?.kill();
       blurScaleTween.current?.kill();
     };
-  }, [
+      }, [
     resize, onMove, onLeave, handleLinkClick, trailCount, sizes, opacities,
       blurPx, threshold, colorNum, pixelSize, whiteCutoff, thresholdShift, fadeInBlobs,
-    fastDuration, slowDuration, fastEase, slowEase, disableBlob
+    fastDuration, slowDuration, fastEase, slowEase, disableBlob, isMaskMode, clipTargetRef, maskActivation
   ]);
 
   return (
@@ -1054,7 +1153,7 @@ export default function BlobCursorDither({
         ref={canvasRef}
         style={{
           position: "absolute",
-          mixBlendMode: "multiply"
+          mixBlendMode: isMaskMode ? "normal" : "multiply"
         }}
       />
     </div>

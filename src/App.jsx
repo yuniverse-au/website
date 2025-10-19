@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Dither from "./Dither";
 import BlobCursorDither from "./BlobCursorDither";
 import "./App.css";
@@ -66,6 +66,7 @@ export default function App() {
   const baseSizes = isMobile ? [900, 675, 450, 270] : [800, 550, 400, 280, 120];
   const scaledSizes = baseSizes.map(size => Math.round(size * blobScale));
   const scaledBlur = Math.round((isMobile ? 65 : 82) * blobScale);
+  const maskContentRef = useRef(null);
 
   useEffect(() => {
     if (ditherReady) return;
@@ -186,6 +187,15 @@ export default function App() {
         )}
       </div>
 
+      <div className="mask-preview" aria-hidden={!ditherReady} ref={maskContentRef}>
+        <div className="mask-preview__inner">
+          <p>
+            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam id dolor at augue porta
+            faucibus. Suspendisse potenti. Fusce euismod erat vel tempor ultrices.
+          </p>
+        </div>
+      </div>
+
       {ditherReady && (
         <BlobCursorDither
           trailCount={isMobile ? 4 : 5}
@@ -198,6 +208,10 @@ export default function App() {
           thresholdShift={-0.4}
           onExpansionComplete={() => setDitherEnabled(false)}
           onExpansionStart={() => setDitherPaused(true)}
+          mode="mask"
+          maskColor="#000000"
+          clipTargetRef={maskContentRef}
+          maskActivation="transition"
         />
       )}
 
