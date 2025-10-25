@@ -89,7 +89,8 @@ export default function BlobCursorDither({
 
   // Track link elements and whether we're hovering over one
   const linkElements = useRef([]);
-  const isOverLink = useRef(false);
+  const logoElements = useRef([]);
+  const magnetState = useRef({ active: false, type: null });
   const currentSizeMultiplier = useRef(1);
   const targetBlobSize = useRef(0); // Track target size for dynamic scaling
   const magnetStrength = 120; // Distance within which magnetism activates (increased from 80)
@@ -248,63 +249,104 @@ export default function BlobCursorDither({
     const isHighVelocity = velocity > HIGH_VELOCITY_THRESHOLD;
     isHighVelocityRef.current = isHighVelocity; // Store in ref for rendering loop
 
-    // Skip expensive link detection on high velocity movement
-    if (!isExpanding.current && !isOnSubpage && !isHighVelocity) {
-      // Check for link magnetism
-      let closestLink = null;
-      let minDist = magnetStrength;
-      let wasOverLink = isOverLink.current;
-      isOverLink.current = false;
+    const magnetStatus = magnetState.current;
+    const previousMagnetType = magnetStatus.type;
+    const wasMagnetActive = magnetStatus.active;
+    magnetStatus.active = false;
+    magnetStatus.type = null;
 
-      for (const link of linkElements.current) {
-        const rect = link.getBoundingClientRect();
-        
-        // For rotated links, calculate center more accurately
-        const linkCenterX = rect.left + rect.width / 2;
-        const linkCenterY = rect.top + rect.height / 2;
-        
-        const dx = x - linkCenterX;
-        const dy = y - linkCenterY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        
-        // Check if cursor is very close or within the link area
-        if (dist < minDist) {
-          minDist = dist;
-          closestLink = { x: linkCenterX, y: linkCenterY, dist, rect };
-          isOverLink.current = true;
+    let activeTarget = null;
+    let activeTargetType = null;
+
+    if (!isExpanding.current && !isHighVelocity) {
+      if (isOnSubpage) {
+        for (const logo of logoElements.current) {
+          if (!logo) continue;
+          const rect = logo.getBoundingClientRect();
+          if (!rect || rect.width === 0 || rect.height === 0) {
+            continue;
+          }
+
+          const withinLogo =
+            x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+
+          if (!withinLogo) {
+            continue;
+          }
+
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+          const dx = x - centerX;
+          const dy = y - centerY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          const radius = Math.max(rect.width, rect.height) * 0.5;
+          const adjustedRadius = Math.max(radius, magnetStrength * 0.75);
+
+          activeTarget = { x: centerX, y: centerY, dist, radius: adjustedRadius };
+          activeTargetType = "logo";
+          magnetStatus.active = true;
+          magnetStatus.type = activeTargetType;
+          break;
+        }
+      } else {
+        let closestLink = null;
+        let minDist = magnetStrength;
+
+        for (const link of linkElements.current) {
+          const rect = link.getBoundingClientRect();
+          const linkCenterX = rect.left + rect.width / 2;
+          const linkCenterY = rect.top + rect.height / 2;
+          const dx = x - linkCenterX;
+          const dy = y - linkCenterY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < minDist) {
+            minDist = dist;
+            closestLink = { x: linkCenterX, y: linkCenterY, dist, radius: magnetStrength };
+          }
+        }
+
+        if (closestLink && closestLink.dist < magnetStrength) {
+          activeTarget = closestLink;
+          activeTargetType = "link";
+          magnetStatus.active = true;
+          magnetStatus.type = activeTargetType;
         }
       }
+    }
 
-      // Apply magnetism if close to a link - stronger pull
-      if (closestLink && closestLink.dist < magnetStrength) {
-        const magnetFactor = 1 - (closestLink.dist / magnetStrength);
-        // Strong pull but capped at 0.95 to prevent overshooting
-        const pullStrength = Math.min(0.95, magnetFactor * 1.2);
-        x = x + (closestLink.x - x) * pullStrength;
-        y = y + (closestLink.y - y) * pullStrength;
+    if (magnetStatus.active && activeTarget) {
+      const magnetRadius = activeTarget.radius ?? magnetStrength;
+      const distanceRatio = Math.min(1, magnetRadius > 0 ? activeTarget.dist / magnetRadius : 1);
+
+      let pullStrength = 0;
+      if (activeTargetType === "logo") {
+        const proximity = Math.max(0, 1 - distanceRatio);
+        const eased = Math.pow(proximity, 0.85);
+        pullStrength = Math.min(0.95, eased * 1.05 + 0.12);
+      } else {
+        const basePull = Math.max(0, 1 - distanceRatio);
+        pullStrength = Math.min(0.95, basePull * 1.2);
       }
 
-      // Animate size based on link dimensions
-      if (isOverLink.current && closestLink) {
-        // Increase blob size by 5% when magnetized
-        const sizeMultiplier = 1.3;
-        
-        if (!wasOverLink) {
-          gsap.to(currentSizeMultiplier, { 
-            current: sizeMultiplier,
-            duration: 0.3, 
-            ease: "power2.out" 
-          });
-        }
-      } else if (!isOverLink.current && wasOverLink) {
-        gsap.to(currentSizeMultiplier, { current: 1, duration: 0.3, ease: "power2.out" });
+      x = x + (activeTarget.x - x) * pullStrength;
+      y = y + (activeTarget.y - y) * pullStrength;
+
+      const targetSizeMultiplier = 1.3;
+      if (!wasMagnetActive || previousMagnetType !== activeTargetType) {
+        gsap.to(currentSizeMultiplier, {
+          current: targetSizeMultiplier,
+          duration: 0.3,
+          ease: "power2.out"
+        });
       }
-    } else if (isOnSubpage || isHighVelocity) {
-      // Reset size multiplier when on subpage or moving very fast
-      if (isOverLink.current) {
-        isOverLink.current = false;
-        gsap.to(currentSizeMultiplier, { current: 1, duration: 0.3, ease: "power2.out" });
-      }
+    } else if (wasMagnetActive) {
+      gsap.to(currentSizeMultiplier, {
+        current: 1,
+        duration: 0.3,
+        ease: "power2.out"
+      });
     }
 
     if (!isExpanding.current && blobOpacity.current < 1) {
@@ -358,7 +400,7 @@ export default function BlobCursorDither({
     const wasBlobDisabled = isBlobDisabled.current;
     const activateMaskForTransition = isMaskMode && maskActivation === "transition";
 
-    e.preventDefault();
+  // e.preventDefault();
 
     if (wasBlobDisabled) {
       isBlobDisabled.current = false;
@@ -576,7 +618,11 @@ export default function BlobCursorDither({
                   }
                   fadeOutBlobs();
                   setTimeout(() => {
-                    window.location.href = targetUrl;
+                    if (targetUrl.includes('#')) {
+                      window.location.hash = targetUrl.split('#')[1];
+                    } else {
+                      window.location.href = targetUrl;
+                    }
                   }, 1000);
                   return;
                 }
@@ -586,7 +632,11 @@ export default function BlobCursorDither({
                   if (temporarilyReenabled.current) {
                     disableBlob();
                     temporarilyReenabled.current = false;
-                    window.location.href = targetUrl;
+                    if (targetUrl.includes('#')) {
+                      window.location.hash = targetUrl.split('#')[1];
+                    } else {
+                      window.location.href = targetUrl;
+                    }
                     requestAnimationFrame(() => {
                       if (wrapRef.current) {
                         wrapRef.current.style.zIndex = String(zIndex);
@@ -602,7 +652,11 @@ export default function BlobCursorDither({
                     ease: "power2.inOut",
                     onComplete: () => {
                       // Navigate to the target URL
-                      window.location.href = targetUrl;
+                      if (targetUrl.includes('#')) {
+                        window.location.hash = targetUrl.split('#')[1];
+                      } else {
+                        window.location.href = targetUrl;
+                      }
                       // Clean up floating link overlays if navigation stays on the same page
                       requestAnimationFrame(() => {
                         if (wrapRef.current) {
@@ -625,23 +679,29 @@ export default function BlobCursorDither({
     resize();
     
     // Cache link element references and attach click handlers
-    const updateLinks = () => {
+    const updateInteractiveElements = () => {
+      // Remove existing handlers to avoid duplicates when refreshing references
+      linkElements.current.forEach(link => {
+        link.removeEventListener('click', handleLinkClick);
+      });
+
       linkElements.current = Array.from(document.querySelectorAll('.side-links__a'));
-      
+      logoElements.current = Array.from(document.querySelectorAll('#site-logo, #site-logo-solid'));
+
       // Attach click handlers to all links
       linkElements.current.forEach(link => {
         link.addEventListener('click', handleLinkClick);
       });
     };
-    updateLinks();
+    updateInteractiveElements();
     
     // Update link positions on resize
     let resizeRaf = 0;
     const onResize = () => {
       cancelAnimationFrame(resizeRaf);
       resizeRaf = requestAnimationFrame(() => {
-        resize();
-        updateLinks();
+  resize();
+  updateInteractiveElements();
       });
     };
     window.addEventListener("resize", onResize);
