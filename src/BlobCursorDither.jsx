@@ -111,6 +111,8 @@ export default function BlobCursorDither({
   const blurScaleRef = useRef(1);
   const blurScaleTween = useRef(null);
   const clipPathCacheRef = useRef("none");
+  const isCursorFrozen = useRef(false);
+  const latestPointerRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     maskVisibleTargetRef.current = clipTargetRef?.current || null;
@@ -200,6 +202,7 @@ export default function BlobCursorDither({
     blurScaleRef.current = 1;
     slowFrameDebtRef.current = 0;
     fastFrameStreakRef.current = 0;
+    isCursorFrozen.current = false;
 
     const canvas = canvasRef.current;
     if (canvas) {
@@ -236,6 +239,16 @@ export default function BlobCursorDither({
     const padding = CANVAS_PADDING; // Must match padding in resize()
     let x = "clientX" in e ? e.clientX : e.touches?.[0]?.clientX || 0;
     let y = "clientY" in e ? e.clientY : e.touches?.[0]?.clientY || 0;
+
+    // Keep track of the latest pointer position so we can snap to it after transitions
+    const pointerScaledX = (x + padding) * DPR;
+    const pointerScaledY = (y + padding) * DPR;
+    latestPointerRef.current.x = pointerScaledX;
+    latestPointerRef.current.y = pointerScaledY;
+
+    if (isCursorFrozen.current) {
+      return;
+    }
 
     // Check if we're on a subpage (hash route like #about, #linkone, etc.)
     const isOnSubpage = window.location.hash && window.location.hash.length > 1;
@@ -397,10 +410,17 @@ export default function BlobCursorDither({
   const handleLinkClick = useCallback((e) => {
     if (isExpanding.current) return;
 
+    const targetUrl = e.currentTarget.href;
+
+    if (e.defaultPrevented) return;
+    if ((typeof e.button === "number" && e.button !== 0) || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+      return;
+    }
+
+    e.preventDefault();
+
     const wasBlobDisabled = isBlobDisabled.current;
     const activateMaskForTransition = isMaskMode && maskActivation === "transition";
-
-  // e.preventDefault();
 
     if (wasBlobDisabled) {
       isBlobDisabled.current = false;
@@ -434,8 +454,6 @@ export default function BlobCursorDither({
         clipPathCacheRef.current = "circle(0px at 50% 50%)";
       }
     }
-    const targetUrl = e.currentTarget.href;
-    
     // Begin degrading resolution before the visual expansion fully kicks in
     resolutionTween.current?.kill();
     resolutionTween.current = gsap.to(resolutionMultiplier, {
@@ -451,6 +469,13 @@ export default function BlobCursorDither({
       p.x = frozenPositions[i].x;
       p.y = frozenPositions[i].y;
     });
+    if (frozenPositions.length > 0) {
+      latestPointerRef.current.x = frozenPositions[0].x;
+      latestPointerRef.current.y = frozenPositions[0].y;
+    }
+    isCursorFrozen.current = true;
+    magnetState.current.active = false;
+    magnetState.current.type = null;
     
     // Remove any previous floating overlays
     document.querySelectorAll('[data-floating-link="true"],[data-floating-links="true"]').forEach(node => {
@@ -586,6 +611,19 @@ export default function BlobCursorDither({
           duration: 0.3,
           ease: "power2.out",
           onComplete: () => {
+            // Allow blobs to resume tracking before the color swap
+            isCursorFrozen.current = false;
+            const { x: resumeX, y: resumeY } = latestPointerRef.current;
+            if (Number.isFinite(resumeX) && Number.isFinite(resumeY)) {
+              for (let i = 0; i < trailCount; i++) {
+                if (quickX.current[i]) {
+                  quickX.current[i](resumeX);
+                }
+                if (quickY.current[i]) {
+                  quickY.current[i](resumeY);
+                }
+              }
+            }
             // While hidden, change color to #cbcbcb
             rgb.current = { r: 203, g: 203, b: 203 };
             
