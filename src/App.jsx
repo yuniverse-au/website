@@ -1,7 +1,30 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Dither from "./Dither";
 import BlobCursorDither from "./BlobCursorDither";
 import "./App.css";
+
+function LogoSvg({ id, className, style, ariaLabel, ariaHidden }) {
+  return (
+    <svg
+      id={id}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 631.7 145.6"
+      fill="currentColor"
+      className={className}
+      style={style}
+      aria-label={ariaLabel}
+      aria-hidden={ariaHidden}
+      // Logo Designer: ヨギ
+    >
+      <path d="M627.2 145.6H457.4c-2.4 0-4.4-2-4.4-4.4v-37.3c0-1.6.9-3.1 2.3-3.9s3.2-.7 4.5.2l16.4 10.8 35.3-23.3c.7-.5 1.6-.7 2.4-.7h23l-25.4-16.7c-1.2-.8-2-2.2-2-3.7V4.4c0-2.4 2-4.4 4.4-4.4h37.7c1.2 0 2.3.5 3.1 1.3s1.3 2 1.3 3.1v37.3c0 2.4-2 4.4-4.4 4.4s-4.4-2-4.4-4.4V8.8h-28.9v55.3l35.8 23.5c1.6 1.1 2.4 3.1 1.8 5s-2.3 3.2-4.2 3.2h-36.4L478.7 120c-1.5 1-3.4 1-4.9 0l-12-7.9v24.7h150.7L587.1 120c-2-1.3-2.6-4.1-1.3-6.1s4.1-2.6 6.1-1.3l37.7 24.9c1.6 1.1 2.4 3.1 1.8 5-.5 1.8-2.2 3.1-4.2 3.1m-452.9 0h-37.7c-2.4 0-4.4-2-4.4-4.4s2-4.4 4.4-4.4h23L96.4 95.1c-1.2-.8-2-2.2-2-3.7s.7-2.9 2-3.7L216.2 8.8h-21.7l-131 86.3c-1.5 1-3.4 1-4.9 0L2 57.8c-1.2-.8-2-2.2-2-3.7s.7-2.9 2-3.7L20.9 38c2-1.3 4.8-.8 6.1 1.3 1.3 2 .8 4.8-1.3 6.1l-13.3 8.7 48.6 32L190.7.7c.7-.5 1.6-.7 2.4-.7h37.7c2 0 3.7 1.3 4.2 3.2.6 1.9-.2 3.9-1.8 5L106.8 91.4l69.9 46c1.6 1.1 2.4 3.1 1.8 5-.5 1.9-2.3 3.2-4.2 3.2" />
+      <path d="M212 145.6c-.8 0-1.7-.2-2.4-.7l-75.5-49.7c-1.2-.8-2-2.2-2-3.7s.7-2.9 2-3.7l56.6-37.3c2-1.3 4.8-.8 6.1 1.3 1.3 2 .8 4.8-1.3 6.1l-51 33.6 67.5 44.4 14.5-9.5V54.1c0-2.4 2-4.4 4.4-4.4s4.4 2 4.4 4.4v74.6c0 1.5-.7 2.9-2 3.7l-18.9 12.4c-.7.5-1.5.8-2.4.8" />
+      <path d="M268.6 145.6h-18.9c-2.4 0-4.4-2-4.4-4.4V41.7c0-1.5.7-2.9 2-3.7l16.9-11.1V8.8h-10v8c0 1.5-.7 2.9-2 3.7L216.4 44v72.2c0 1.6-.9 3.1-2.3 3.9s-3.2.7-4.5-.2L171.9 95c-1.2-.8-2-2.2-2-3.7s.7-2.9 2-3.7l18.9-12.4c2-1.3 4.8-.8 6.1 1.3 1.3 2 .8 4.8-1.3 6.1l-13.3 8.7 25.3 16.7V41.7c0-1.5.7-2.9 2-3.7l35.8-23.5v-10c0-2.4 2-4.4 4.4-4.4h18.9c2.4 0 4.4 2 4.4 4.4v24.9c0 1.5-.7 2.9-2 3.7l-16.9 11.1v92.6h10V54.1c0-1.5.7-2.9 2-3.7l16.9-11.1V4.4c0-2.4 2-4.4 4.4-4.4s4.4 2 4.4 4.4v37.3c0 1.5-.7 2.9-2 3.7L273 56.5v84.6c.1 2.5-1.9 4.5-4.4 4.5m56.7 0h-37.7c-2 0-3.7-1.3-4.2-3.2-.6-1.9.2-3.9 1.8-5l16.9-11.1V4.4c0-2.4 2-4.4 4.4-4.4s4.4 2 4.4 4.4v124.3c0 1.5-.7 2.9-2 3.7l-6.6 4.3H324l34.7-22.8V41.7c0-2.4 2-4.4 4.4-4.4s4.4 2 4.4 4.4v74.6c0 1.5-.7 2.9-2 3.7l-37.7 24.9c-.8.4-1.7.7-2.5.7" />
+      <path d="M287.5 120.7c-2.4 0-4.4-2-4.4-4.4V79.1c0-2.4 2-4.4 4.4-4.4s4.4 2 4.4 4.4v37.2c0 2.4-1.9 4.4-4.4 4.4m37.8 0c-.7 0-1.4-.2-2.1-.5-1.4-.8-2.3-2.3-2.3-3.9V66.6c0-1.5.7-2.9 2-3.7l13.3-8.7-13.3-8.7c-1.2-.8-2-2.2-2-3.7V4.4c0-2.4 2-4.4 4.4-4.4H363c2.4 0 4.4 2 4.4 4.4v12.4c0 1.5-.7 2.9-2 3.7L346.6 33c-2 1.3-4.8.8-6.1-1.3-1.3-2-.8-4.8 1.3-6.1l16.9-11.1V8.8h-28.9v30.5l16.9 11.1c1.2.8 2 2.2 2 3.7s-.7 2.9-2 3.7l-16.9 11.1V108l10-6.6V78.9c0-2.4 2-4.4 4.4-4.4s4.4 2 4.4 4.4v24.9c0 1.5-.7 2.9-2 3.7L327.7 120c-.7.5-1.6.7-2.4.7m113.2 24.9c-.8 0-1.7-.2-2.4-.7l-18.9-12.4c-1.2-.8-2-2.2-2-3.7V81.4l-16.9-11.1c-1.2-.8-2-2.2-2-3.7V41.7c0-1.5.7-2.9 2-3.7l35.8-23.5V8.8h-47.8v119.9c0 1.5-.7 2.9-2 3.7l-6.6 4.3h4.1c2.4 0 4.4 2 4.4 4.4s-2 4.4-4.4 4.4H363c-2 0-3.7-1.3-4.2-3.2-.6-1.9.2-3.9 1.8-5l16.9-11.1V4.4c0-2.4 2-4.4 4.4-4.4h56.6c2.4 0 4.4 2 4.4 4.4v12.4c0 1.5-.7 2.9-2 3.7L405.1 44v20.1L422 75.2c1.2.8 2 2.2 2 3.7v47.3l16.9 11.1c2 1.3 2.6 4.1 1.3 6.1-.9 1.5-2.3 2.2-3.7 2.2" />
+      <path d="M438.5 120.7c-2.4 0-4.4-2-4.4-4.4V91.4c0-1.5.7-2.9 2-3.7L455 75.3c1.5-1 3.4-1 4.9 0l16.4 10.8 14.5-9.5V37.5L441 70.3c-1.5 1-3.4 1-4.9 0l-18.9-12.4c-1.2-.8-2-2.2-2-3.7s.7-2.9 2-3.7L453 26.9V4.4c0-2.4 2-4.4 4.4-4.4h37.7c2.4 0 4.4 2 4.4 4.4s-2 4.4-4.4 4.4h-33.3v20.4c0 1.5-.7 2.9-2 3.7l-32.1 21.2 10.8 7.1 54.2-35.7c1.4-.9 3.1-1 4.5-.2s2.3 2.3 2.3 3.9V79c0 1.5-.7 2.9-2 3.7l-18.9 12.4c-1.5 1-3.4 1-4.9 0l-16.4-10.8-14.5 9.5v22.4c.1 2.5-1.9 4.5-4.3 4.5m-151-52.8c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5" />
+      <path d="M476 71.5c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5.1 2.5 2 4.5 4.5 4.5m0-44.8c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5m-75.1 0c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5m-.1 69.2c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s1.9 4.5 4.5 4.5m.1 17.5c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5.1 2.5 2 4.5 4.5 4.5m0 16.7c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5m-.1 15.5c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s1.9 4.5 4.5 4.5M532.9 26.7c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5m0 15.8c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5s2 4.5 4.5 4.5m0 16.1c2.4 0 4.6-2.1 4.5-4.5s-2-4.5-4.5-4.5c-2.4 0-4.6 2.1-4.5 4.5.1 2.5 2 4.5 4.5 4.5" />
+    </svg>
+  );
+}
 
 export default function App() {
   const [isMobile, setIsMobile] = useState(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
@@ -12,6 +35,13 @@ export default function App() {
     if (typeof window === "undefined") return false;
     return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   });
+  const [isHashPage, setIsHashPage] = useState(false);
+  const [blobScale, setBlobScale] = useState(1);
+
+  const colorSteps = isMobile ? 8 : 8;
+  const waveColor = isMobile ? [0.3, 0.3, 0.3] : [0.2, 0.2, 0.2];
+  const blobPixelSize = 2;
+  const blobBaseZIndex = isHashPage ? 60 : 6;
 
   useEffect(() => {
     if (window.location.hash) {
@@ -19,34 +49,41 @@ export default function App() {
       window.location.replace(baseUrl);
     }
   }, []);
-  
-  const colorSteps = isMobile ? 8 : 8;
-  const waveColor = isMobile ? [0.3, 0.3, 0.3] : [0.2, 0.2, 0.2];
-  
-  const blobPixelSize = 2;
 
-  // Calculate responsive scale based on viewport width
-  // Scale from 0.2x at 768px to 1.0x at 3840px (4K)
-  const [blobScale, setBlobScale] = useState(1);
-  
+  useEffect(() => {
+    const checkHash = () => {
+      const hasHash = window.location.hash && window.location.hash.length > 1;
+      setIsHashPage(hasHash);
+    };
+
+    checkHash();
+    window.addEventListener("hashchange", checkHash);
+    return () => window.removeEventListener("hashchange", checkHash);
+  }, []);
+
+  useEffect(() => {
+    if (!isHashPage) {
+      const logos = document.querySelectorAll('#site-logo, #site-logo-solid');
+      logos.forEach(logo => {
+        logo.style.display = '';
+      });
+    }
+  }, [isHashPage]);
+
   useEffect(() => {
     const updateScale = () => {
       const width = window.innerWidth;
       const height = window.innerHeight;
-      
-      // Update logo size based on viewport
+
       const newIsMobile = width <= 768;
       setIsMobile(newIsMobile);
       setLogoSize(newIsMobile ? "70vw" : "40vw");
-      
-      // Scale based on viewport HEIGHT only: 600px = 0.2x, 2160px (4K height) = 1.0x
-      // For screens smaller than 600px, cap at 0.2x
-      // For screens larger than 2160px, cap at 1.0x
+
       const minHeight = 600;
       const maxHeight = 2160;
       const minScale = 0.2;
       const maxScale = 1.0;
-      
+
       if (height <= minHeight) {
         setBlobScale(minScale);
       } else if (height >= maxHeight) {
@@ -56,17 +93,18 @@ export default function App() {
         setBlobScale(scale);
       }
     };
-    
+
     updateScale();
     window.addEventListener("resize", updateScale);
     return () => window.removeEventListener("resize", updateScale);
   }, []);
 
-
   const baseSizes = isMobile ? [900, 675, 450, 270] : [800, 550, 400, 280, 120];
   const scaledSizes = baseSizes.map(size => Math.round(size * blobScale));
   const scaledBlur = Math.round((isMobile ? 65 : 82) * blobScale);
-  const maskContentRef = useRef(null);
+  const hashPageContentRef = useRef(null);
+  const hashPageBackgroundRef = useRef(null);
+  const additionalMaskRefs = useMemo(() => [hashPageBackgroundRef], [hashPageBackgroundRef]);
 
   useEffect(() => {
     if (ditherReady) return;
@@ -166,7 +204,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="app">
+    <div className={`app ${isHashPage ? "app--hash" : ""}`}>
       <div className="preload-reveal" aria-hidden="true">
         <div className="preload-ghost" />
         <h3 className="legal">© 2025 Yuniverse Australia. All rights reserved.</h3>
@@ -187,12 +225,29 @@ export default function App() {
         )}
       </div>
 
-      <div className="mask-preview" aria-hidden={!ditherReady} ref={maskContentRef}>
-        <div className="mask-preview__inner">
-          <p>
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam id dolor at augue porta
-            faucibus. Suspendisse potenti. Fusce euismod erat vel tempor ultrices.
-          </p>
+      {/* Hash page layers: background on a lower plane, content masked above */}
+      <div
+        className={`hash-page-background ${isHashPage ? "hash-page-background--visible" : ""}`}
+        ref={hashPageBackgroundRef}
+        aria-hidden="true"
+      />
+
+      <div
+        className={`hash-page-content ${isHashPage ? "hash-page-content--visible" : ""}`}
+        ref={hashPageContentRef}
+      >
+        <LogoSvg
+          className="logo logo-diff logo--hash logo--interactive"
+          style={{ width: logoSize }}
+          ariaHidden
+        />
+        <div className="mask-preview" aria-hidden={!ditherReady}>
+          <div className="mask-preview__inner">
+            <p>
+              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam id dolor at augue porta
+              faucibus. Suspendisse potenti. Fusce euismod erat vel tempor ultrices.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -208,10 +263,18 @@ export default function App() {
           thresholdShift={-0.4}
           onExpansionComplete={() => setDitherEnabled(false)}
           onExpansionStart={() => setDitherPaused(true)}
+          onReturnStart={() => setDitherPaused(true)}
+          onReturnComplete={() => {
+            setDitherEnabled(true);
+            setDitherPaused(false);
+          }}
           mode="mask"
           maskColor="#000000"
-          clipTargetRef={maskContentRef}
+          clipTargetRef={hashPageContentRef}
+          additionalClipRefs={additionalMaskRefs}
           maskActivation="transition"
+          hashOverlayActive={isHashPage}
+          zIndex={blobBaseZIndex}
         />
       )}
 
@@ -220,7 +283,7 @@ export default function App() {
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 631.7 145.6"
         fill="currentColor"
-        className="logo logo-diff"
+  className={`logo logo-diff ${isHashPage ? 'logo--hash-home logo--clickable' : 'logo--home'}`}
         style={{ width: logoSize }}
         // Logo Designer: ヨギ
       >
@@ -238,7 +301,7 @@ export default function App() {
         viewBox="0 0 631.7 145.6"
         fill="currentColor"
         aria-label="The Yuniverse"
-        className="logo logo--solid"
+  className={`logo logo--solid ${isHashPage ? 'logo--hash-home logo--clickable' : 'logo--home'}`}
         style={{ width: logoSize }}
         // Logo Designer: ヨギ
       >

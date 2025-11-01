@@ -22,8 +22,58 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
   transform: translateZ(0);
 }
 
-.mask-preview {
+/* ===========================
+   Hash page content wrapper
+   =========================== */
+
+.hash-page-background {
   position: fixed;
+  inset: 0;
+  z-index: 5; /* Below blob + masked content so the blob stays visible */
+  background: #000000;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: none;
+}
+
+.hash-page-background--visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.hash-page-content {
+  position: fixed;
+  inset: 0;
+  z-index: 40; /* Ensure masked content renders above the blob canvas */
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: none;
+  mix-blend-mode: difference;
+}
+
+.hash-page-content--visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.app--hash .hash-page-content {
+  pointer-events: auto;
+}
+
+.app--hash #site-logo,
+.app--hash #site-logo-solid {
+  display: none;
+}
+
+.app--hash .hash-page-content .logo--hash {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.mask-preview {
+  position: absolute;
   left: 14vw;
   top: var(--side-links-top);
   right: auto;
@@ -32,10 +82,8 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
   align-items: flex-start;
   justify-content: flex-start;
   padding: clamp(0.75rem, 1.5vw, 1.5rem) clamp(0.75rem, 1.5vw, 1.5rem) 0 clamp(2.5rem, 6vw, 5.5rem);
-  z-index: 20;
+  z-index: 2; /* Above background, below floating links */
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s ease;
   mix-blend-mode: difference;
 }
 
@@ -57,8 +105,14 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
   left: 7vw;
   height: auto;
   max-width: 100%;
-  pointer-events: none;
+  pointer-events: none; /* Default: not clickable on home page */
   user-select: none;
+  cursor: default;
+}
+
+.logo--clickable {
+  pointer-events: auto; /* Enable clicks only on hash pages */
+  cursor: pointer;
 }
 
 .logo-diff {
@@ -190,14 +244,14 @@ h1, h2, h3 {
 }
 
 .side-links--diff {
-  z-index: 2;
+  z-index: 12; /* Match logo-diff layer so mix-blend-mode difference interacts with blob */
   mix-blend-mode: difference;
   filter: grayscale(1) contrast(2000%) brightness(200%);
   color: #fff;
 }
 
 .side-links--solid {
-  z-index: 3;
+  z-index: 13; /* Match logo--solid layer for consistent overlay */
   mix-blend-mode: overlay;
   color: #000;
 }
