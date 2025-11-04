@@ -23,6 +23,7 @@ const BLUR_MIN_SCALE = 0.35;
 const BLUR_STEP_DOWN = 0.15;
 const BLUR_STEP_UP = 0.1;
 const BLUR_ENABLED = false; // Disable blur to reduce CPU load
+const HASH_IDLE_Z_INDEX = 2; // Set z-index for hash overlay when idle
 const SKIP_DITHER_WHEN_IDLE = true; // Skip dithering entirely when blob is settled and no input
 const IDLE_DITHER_SKIP_THRESHOLD = 200; // ms of no movement before skipping dither
 const AGGRESSIVE_GRID_REDUCTION = true; // Use 4x larger pixels when idle to reduce getImageData overhead
@@ -30,6 +31,34 @@ const SKIP_MAGNETISM_ON_HIGH_VELOCITY = true; // Skip link detection on fast mov
 const HIGH_VELOCITY_THRESHOLD = 150; // pixels/frame - above this, skip magnetism checks
 const REDUCE_TRAILS_ON_HIGH_VELOCITY = true; // Skip rendering trail blobs when moving fast
 const FRAME_SKIP_ON_HIGH_VELOCITY = false; // Skip every other frame when very fast (aggressive)
+
+const hexToRgb = (hex) => {
+  if (typeof hex !== "string") {
+    return { r: 0, g: 0, b: 0 };
+  }
+  let normalized = hex.trim();
+  if (normalized.startsWith("#")) {
+    normalized = normalized.slice(1);
+  }
+  if (normalized.length === 3) {
+    normalized = normalized
+      .split("")
+      .map((char) => char + char)
+      .join("");
+  }
+  if (normalized.length !== 6) {
+    return { r: 0, g: 0, b: 0 };
+  }
+  const int = parseInt(normalized, 16);
+  if (Number.isNaN(int)) {
+    return { r: 0, g: 0, b: 0 };
+  }
+  return {
+    r: (int >> 16) & 255,
+    g: (int >> 8) & 255,
+    b: int & 255,
+  };
+};
 
 export default function BlobCursorDither({
   trailCount = 4,
@@ -42,6 +71,7 @@ export default function BlobCursorDither({
   blurPx = 30,
   threshold = 0.35,
   color = "#000000",
+  hashColor = "#ffffff",
   zIndex = 1,
   colorNum = 4,
   pixelSize = 2,
@@ -55,6 +85,8 @@ export default function BlobCursorDither({
   maskColor = "#000000",
   clipTargetRef = null,
   additionalClipRefs = [],
+  homeClipRefs = [],
+  homeMaskSelector = ".home-mask-target",
   maskActivation = "always",
   hashOverlayActive = false
 }) {
@@ -73,10 +105,35 @@ export default function BlobCursorDither({
     () => (Array.isArray(additionalClipRefs) ? additionalClipRefs.filter(Boolean) : []),
     [additionalClipRefs]
   );
+  const homeClipRefsMemo = useMemo(
+    () => (Array.isArray(homeClipRefs) ? homeClipRefs.filter(Boolean) : []),
+    [homeClipRefs]
+  );
+  const activeMaskGroupRef = useRef("hash");
   const maskVisibleTargetsRef = useRef([]);
+  const baseColorRef = useRef(hexToRgb(color));
+  const hashColorRef = useRef(hexToRgb(hashColor));
+  const rgb = useRef(hashOverlayActive ? { ...hashColorRef.current } : { ...baseColorRef.current });
 
-  const getMaskTargets = useCallback(() => {
+  const getMaskTargetsForGroup = useCallback((group) => {
     const targets = [];
+    if (group === "home") {
+      homeClipRefsMemo.forEach(ref => {
+        const node = ref?.current;
+        if (node && !targets.includes(node)) {
+          targets.push(node);
+        }
+      });
+      if (typeof homeMaskSelector === "string" && homeMaskSelector.trim().length > 0) {
+        document.querySelectorAll(homeMaskSelector).forEach(node => {
+          if (node instanceof HTMLElement && !targets.includes(node)) {
+            targets.push(node);
+          }
+        });
+      }
+      return targets;
+    }
+
     if (clipTargetRef?.current) {
       targets.push(clipTargetRef.current);
     }
@@ -87,19 +144,26 @@ export default function BlobCursorDither({
       }
     });
     return targets;
-  }, [clipTargetRef, additionalClipRefsMemo]);
+  }, [clipTargetRef, additionalClipRefsMemo, homeClipRefsMemo, homeMaskSelector]);
 
   const refreshMaskTargets = useCallback(() => {
-    const targets = getMaskTargets();
+    const targets = getMaskTargetsForGroup(activeMaskGroupRef.current);
     maskVisibleTargetsRef.current = targets;
     return targets;
-  }, [getMaskTargets]);
+  }, [getMaskTargetsForGroup]);
 
   const getActiveMaskTargets = useCallback(() => {
     if (!maskVisibleTargetsRef.current || maskVisibleTargetsRef.current.length === 0) {
       return refreshMaskTargets();
     }
     return maskVisibleTargetsRef.current;
+  }, [refreshMaskTargets]);
+
+  const setActiveMaskGroup = useCallback((group) => {
+    if (activeMaskGroupRef.current !== group) {
+      activeMaskGroupRef.current = group;
+    }
+    return refreshMaskTargets();
   }, [refreshMaskTargets]);
 
   const forEachMaskTarget = useCallback((cb) => {
@@ -112,6 +176,49 @@ export default function BlobCursorDither({
     const targets = getActiveMaskTargets();
     return targets[0] || null;
   }, [getActiveMaskTargets]);
+
+  const normalizeHashValue = useCallback((value) => {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    if (trimmed.startsWith("#")) {
+      return trimmed.length > 1 ? trimmed.toLowerCase() : null;
+    }
+
+    const hashIndex = trimmed.indexOf("#");
+    if (hashIndex === -1) return null;
+
+    const hashSegment = trimmed.slice(hashIndex);
+    return hashSegment.length > 1 ? hashSegment.toLowerCase() : null;
+  }, []);
+
+  const executePendingNavigation = useCallback((overrideUrl) => {
+    const target = overrideUrl ?? pendingNavigationRef.current;
+    if (!target) {
+      return false;
+    }
+
+    pendingNavigationRef.current = null;
+
+    try {
+      const hashIndex = target.indexOf("#");
+      if (hashIndex !== -1) {
+        const hashValue = target.slice(hashIndex + 1);
+        if (hashValue.length > 0) {
+          window.location.hash = hashValue;
+        } else {
+          window.location.href = target;
+        }
+      } else {
+        window.location.href = target;
+      }
+    } catch (err) {
+      window.location.href = target;
+    }
+
+    return true;
+  }, []);
 
   const applyCanvasBlend = useCallback(() => {
     if (!isMaskMode) return;
@@ -126,9 +233,20 @@ export default function BlobCursorDither({
     applyCanvasBlend();
   }, [applyCanvasBlend]);
 
+  const resetBlobZIndex = useCallback(() => {
+    if (!wrapRef.current) return;
+    const hasHash = window.location.hash && window.location.hash.length > 1;
+    wrapRef.current.style.zIndex = hasHash ? String(HASH_IDLE_Z_INDEX) : String(zIndex);
+  }, [zIndex]);
+
   useEffect(() => {
     maskColorRef.current = maskColor;
   }, [maskColor]);
+
+  useEffect(() => {
+    if (isExpanding.current) return;
+    resetBlobZIndex();
+  }, [hashOverlayActive, resetBlobZIndex]);
 
   // points animated by GSAP
   const points = useRef(
@@ -139,12 +257,6 @@ export default function BlobCursorDither({
   const prevPoints = useRef(
     Array.from({ length: trailCount }, () => ({ x: -9999, y: -9999 }))
   );
-
-  const rgb = useRef({
-    r: parseInt(color.slice(1, 3), 16) || 0,
-    g: parseInt(color.slice(3, 5), 16) || 0,
-    b: parseInt(color.slice(5, 7), 16) || 0,
-  });
 
   // Track link elements and whether we're hovering over one
   const linkElements = useRef([]);
@@ -172,6 +284,28 @@ export default function BlobCursorDither({
   const clipPathCacheRef = useRef("none");
   const isCursorFrozen = useRef(false);
   const latestPointerRef = useRef({ x: 0, y: 0 });
+  const pendingNavigationRef = useRef(null);
+
+  useEffect(() => {
+    const parsedBase = hexToRgb(color);
+    baseColorRef.current = parsedBase;
+    if (!hashOverlayActive && !isExpanding.current) {
+      rgb.current = { ...parsedBase };
+    }
+  }, [color, hashOverlayActive]);
+
+  useEffect(() => {
+    const parsedHash = hexToRgb(hashColor);
+    hashColorRef.current = parsedHash;
+    if (hashOverlayActive) {
+      rgb.current = { ...parsedHash };
+    }
+  }, [hashColor, hashOverlayActive]);
+
+  useEffect(() => {
+    const targetColor = hashOverlayActive ? hashColorRef.current : baseColorRef.current;
+    rgb.current = { ...targetColor };
+  }, [hashOverlayActive]);
 
   useEffect(() => {
     const targets = refreshMaskTargets();
@@ -492,6 +626,8 @@ export default function BlobCursorDither({
     if (isExpanding.current) return;
 
     const targetUrl = e.currentTarget.href;
+    pendingNavigationRef.current = targetUrl;
+    const targetHash = normalizeHashValue(targetUrl);
 
     if (e.defaultPrevented) return;
     if ((typeof e.button === "number" && e.button !== 0) || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
@@ -499,6 +635,19 @@ export default function BlobCursorDither({
     }
 
     e.preventDefault();
+
+    setActiveMaskGroup("hash");
+
+    const hashContentNode = document.querySelector('.hash-page-content');
+    if (hashContentNode) {
+      hashContentNode.style.opacity = '1';
+      hashContentNode.style.visibility = 'visible';
+    }
+    const hashBackgroundNode = document.querySelector('.hash-page-background');
+    if (hashBackgroundNode) {
+      hashBackgroundNode.style.opacity = '1';
+      hashBackgroundNode.style.visibility = 'visible';
+    }
 
     const wasBlobDisabled = isBlobDisabled.current;
     const activateMaskForTransition = isMaskMode && maskActivation === "transition";
@@ -561,7 +710,7 @@ export default function BlobCursorDither({
     magnetState.current.type = null;
     
     // Remove any previous floating overlays
-    document.querySelectorAll('[data-floating-link="true"],[data-floating-links="true"]').forEach(node => {
+    document.querySelectorAll('[data-floating-links="true"]').forEach(node => {
       node.remove();
     });
 
@@ -569,7 +718,7 @@ export default function BlobCursorDither({
 
     // Duplicate each side nav so layout/spacing matches the original stack
     sideNavs.forEach(nav => {
-  const computedNav = window.getComputedStyle(nav);
+      const computedNav = window.getComputedStyle(nav);
       const navClone = nav.cloneNode(true);
 
       navClone.setAttribute('data-floating-links', 'true');
@@ -578,7 +727,6 @@ export default function BlobCursorDither({
       navClone.style.pointerEvents = 'none';
       navClone.style.mixBlendMode = computedNav.mixBlendMode;
       navClone.style.filter = computedNav.filter;
-      navClone.style.color = computedNav.color;
       navClone.style.zIndex = nav.classList.contains('side-links--diff') ? '12' : '13';
 
       const anchorNodes = Array.from(navClone.querySelectorAll('.side-links__a'));
@@ -600,13 +748,14 @@ export default function BlobCursorDither({
         span.style.lineHeight = anchorStyles.lineHeight;
         span.style.padding = anchorStyles.padding;
         span.style.pointerEvents = 'none';
-        span.style.color = anchorStyles.color;
+        span.style.color = 'inherit';
         span.style.textDecoration = 'none';
 
-  // Only the clicked link stays visible; others reserve space but stay hidden
-  const isTarget = anchor.href === targetUrl;
-  span.style.opacity = isTarget ? '1' : '0';
-  span.style.visibility = isTarget ? 'visible' : 'hidden';
+        const anchorAttr = anchor.getAttribute('href') || '';
+        const anchorHash = normalizeHashValue(anchorAttr);
+        const isTarget = targetHash ? anchorHash === targetHash : anchor.href === targetUrl;
+        span.style.opacity = (isTarget || !targetHash) ? '1' : '0';
+        span.style.visibility = (isTarget || !targetHash) ? 'visible' : 'hidden';
 
         anchor.replaceWith(span);
       });
@@ -622,11 +771,11 @@ export default function BlobCursorDither({
     
     // Raise blob above everything (above both hash content and floating links)
     if (wrapRef.current) {
-      wrapRef.current.style.zIndex = '30';
+      wrapRef.current.style.zIndex = String(zIndex);
     }
     
-    // Initialize color transition to current color (black)
-    colorTransition.current = { r: 0, g: 0, b: 0 };
+  // Initialize color transition tracker to the active blob color
+  colorTransition.current = { ...rgb.current };
     
     // Get viewport dimensions and calculate size needed to cover entire screen
     const viewportWidth = window.innerWidth;
@@ -675,7 +824,11 @@ export default function BlobCursorDither({
         currentSizeMultiplier.current = expansionMultiplier.current;
       },
       onComplete: () => {
+        // Phase 2: Swap background to black while the mask still hides content
+        document.body.style.backgroundColor = '#000000';
+
         if (activateMaskForTransition) {
+          // Drop mask as soon as expansion finishes so only the blob fade remains visible
           setMaskActive(false);
           const targets = forEachMaskTarget(targetEl => {
             targetEl.style.clipPath = "none";
@@ -687,15 +840,13 @@ export default function BlobCursorDither({
             clipPathCacheRef.current = "none";
           }
         }
-        // Phase 2: Swap background to black and disable dither
-        document.body.style.backgroundColor = '#000000';
-        if (onExpansionComplete) {
-          onExpansionComplete();
-        }
         
         // Hide original side links now that the blob has fully expanded
-        // but keep the floating replicas visible
+        // but keep masked/home copies and floating replicas visible
         document.querySelectorAll('.side-links:not([data-floating-links])').forEach(nav => {
+          if (nav.closest('.home-mask-content')) {
+            return;
+          }
           nav.style.display = 'none';
         });
         // Hide the anchored logos so only the masked clone remains visible
@@ -706,7 +857,7 @@ export default function BlobCursorDither({
         // Phase 3: Hide blobs and shrink back to original size
         gsap.to(blobOpacity, {
           current: 0,
-          duration: 0.3,
+          duration: 0.25,
           ease: "power2.out",
           onComplete: () => {
             // Allow blobs to resume tracking before the color swap
@@ -722,9 +873,6 @@ export default function BlobCursorDither({
                 }
               }
             }
-            // While hidden, change color to pure white so difference renders masked text as black
-            rgb.current = { r: 255, g: 255, b: 255 };
-            
             // Shrink back to original size (while still hidden)
             gsap.to(expansionMultiplier, {
               current: 1,
@@ -734,6 +882,8 @@ export default function BlobCursorDither({
                 currentSizeMultiplier.current = expansionMultiplier.current;
               },
               onComplete: () => {
+                rgb.current = { ...hashColorRef.current };
+
                 // Ease resolution back to normal while the blob is hidden
                 resolutionTween.current?.kill();
                 resolutionTween.current = gsap.to(resolutionMultiplier, {
@@ -741,6 +891,12 @@ export default function BlobCursorDither({
                   duration: 0.6,
                   ease: "power2.inOut"
                 });
+
+                if (onExpansionComplete) {
+                  onExpansionComplete();
+                }
+
+                executePendingNavigation(targetUrl);
 
                 // Phase 4: Resume cursor tracking and ensure rendering before fade-in
                 isExpanding.current = false; // Allow cursor tracking to resume
@@ -754,11 +910,8 @@ export default function BlobCursorDither({
                   }
                   fadeOutBlobs();
                   setTimeout(() => {
-                    if (targetUrl.includes('#')) {
-                      window.location.hash = targetUrl.split('#')[1];
-                    } else {
-                      window.location.href = targetUrl;
-                    }
+                    executePendingNavigation(targetUrl);
+                    requestAnimationFrame(resetBlobZIndex);
                   }, 1000);
                   return;
                 }
@@ -768,19 +921,14 @@ export default function BlobCursorDither({
                   if (temporarilyReenabled.current) {
                     disableBlob();
                     temporarilyReenabled.current = false;
-                    if (targetUrl.includes('#')) {
-                      window.location.hash = targetUrl.split('#')[1];
-                    } else {
-                      window.location.href = targetUrl;
-                    }
-                    requestAnimationFrame(() => {
-                      if (wrapRef.current) {
-                        wrapRef.current.style.zIndex = String(zIndex);
-                      }
-                      document.querySelectorAll('[data-floating-link="true"]').forEach(node => node.remove());
-                    });
+                    executePendingNavigation(targetUrl);
+                    requestAnimationFrame(resetBlobZIndex);
                     return;
                   }
+
+                  // Restore blob layer z-index before fading back in so the canvas
+                  // returns to its normal stacking order while it fades into view.
+                  resetBlobZIndex();
 
                   gsap.to(blobOpacity, {
                     current: 1,
@@ -788,18 +936,9 @@ export default function BlobCursorDither({
                     ease: "power2.inOut",
                     onComplete: () => {
                       // Navigate to the target URL
-                      if (targetUrl.includes('#')) {
-                        window.location.hash = targetUrl.split('#')[1];
-                      } else {
-                        window.location.href = targetUrl;
-                      }
-                      // Clean up floating link overlays if navigation stays on the same page
-                      requestAnimationFrame(() => {
-                        if (wrapRef.current) {
-                          wrapRef.current.style.zIndex = String(zIndex);
-                        }
-                        document.querySelectorAll('[data-floating-link="true"]').forEach(node => node.remove());
-                      });
+                      executePendingNavigation();
+                      // Reset blob layer depth once the fade completes
+                      requestAnimationFrame(resetBlobZIndex);
                     }
                   });
                 }, 50); // Small delay to let cursor tracking resume
@@ -809,7 +948,7 @@ export default function BlobCursorDither({
         });
       }
     });
-  }, [sizes, onExpansionComplete, blurPx, zIndex, fadeOutBlobs, disableBlob, setMaskActive, forEachMaskTarget]);
+  }, [sizes, onExpansionComplete, onExpansionStart, blurPx, zIndex, fadeOutBlobs, disableBlob, setMaskActive, forEachMaskTarget, normalizeHashValue, setActiveMaskGroup, resetBlobZIndex]);
 
   // Handle clicking on the logo to return to home (remove hash) with a mirrored transition
   const handleLogoClick = useCallback((e) => {
@@ -819,7 +958,10 @@ export default function BlobCursorDither({
     const currentHash = window.location.hash;
     if (!currentHash || currentHash.length <= 1) return;
 
-    e.preventDefault();
+  e.preventDefault();
+
+  pendingNavigationRef.current = null;
+  const baseUrl = window.location.origin + window.location.pathname;
 
     const wasBlobDisabled = isBlobDisabled.current;
     const activateMaskForTransition = isMaskMode && maskActivation === "transition";
@@ -852,6 +994,7 @@ export default function BlobCursorDither({
     }
 
     if (activateMaskForTransition) {
+      setActiveMaskGroup("home");
       setMaskActive(true);
       const targets = forEachMaskTarget(targetEl => {
         // Start mask visible so it can be "cleared" as we go back
@@ -864,6 +1007,9 @@ export default function BlobCursorDither({
         clipPathCacheRef.current = "circle(0px at 50% 50%)";
       }
     }
+
+  // Ensure the blob uses the hash color while the exit mask reveals home content
+  rgb.current = { ...hashColorRef.current };
 
     // Begin degrading resolution before the visual expansion fully kicks in
     resolutionTween.current?.kill();
@@ -888,69 +1034,24 @@ export default function BlobCursorDither({
     magnetState.current.active = false;
     magnetState.current.type = null;
 
-    // Remove any previous floating overlays
-    document.querySelectorAll('[data-floating-link="true"],[data-floating-links="true"]').forEach(node => {
-      node.remove();
-    });
-
-    // Duplicate side link stacks and keep ONLY the current-hash label visible
-    const sideNavs = Array.from(document.querySelectorAll('.side-links'));
-    const baseUrl = window.location.origin + window.location.pathname;
-    const targetHashLower = currentHash.toLowerCase();
-    sideNavs.forEach(nav => {
-      const computedNav = window.getComputedStyle(nav);
-      const navClone = nav.cloneNode(true);
-      navClone.setAttribute('data-floating-links', 'true');
-      navClone.setAttribute('aria-hidden', 'true');
-      navClone.style.position = 'fixed';
-      navClone.style.pointerEvents = 'none';
-      navClone.style.mixBlendMode = computedNav.mixBlendMode;
-      navClone.style.filter = computedNav.filter;
-      navClone.style.color = computedNav.color;
-      navClone.style.zIndex = nav.classList.contains('side-links--diff') ? '22' : '23'; // Above hash-page-content
-
-      const anchorNodes = Array.from(navClone.querySelectorAll('.side-links__a'));
-      anchorNodes.forEach(anchor => {
-        const span = document.createElement('span');
-        span.className = anchor.className;
-        span.textContent = anchor.textContent;
-        span.setAttribute('aria-hidden', 'true');
-
-        const anchorStyles = window.getComputedStyle(anchor);
-        span.style.display = anchorStyles.display;
-        span.style.transform = anchorStyles.transform;
-        span.style.transformOrigin = anchorStyles.transformOrigin;
-        span.style.whiteSpace = anchorStyles.whiteSpace;
-        span.style.fontFamily = anchorStyles.fontFamily;
-        span.style.fontSize = anchorStyles.fontSize;
-        span.style.fontWeight = anchorStyles.fontWeight;
-        span.style.letterSpacing = anchorStyles.letterSpacing;
-        span.style.lineHeight = anchorStyles.lineHeight;
-        span.style.padding = anchorStyles.padding;
-        span.style.pointerEvents = 'none';
-        span.style.color = anchorStyles.color;
-        span.style.textDecoration = 'none';
-
-        const href = anchor.getAttribute('href') || '';
-        const isCurrent = href.toLowerCase() === targetHashLower;
-        span.style.opacity = isCurrent ? '1' : '0';
-        span.style.visibility = isCurrent ? 'visible' : 'hidden';
-
-        anchor.replaceWith(span);
-      });
-
-      // Append floating link to hash page content wrapper so it gets masked
-      const hashPageContent = document.querySelector('.hash-page-content');
-      if (hashPageContent) {
-        hashPageContent.appendChild(navClone);
-      } else {
-        document.body.appendChild(navClone);
-      }
-    });
-
     // Raise blob above everything (above both hash content and floating links)
     if (wrapRef.current) {
-      wrapRef.current.style.zIndex = '30';
+      wrapRef.current.style.zIndex = String(zIndex);
+    }
+
+    // Ease hash layers out so the masked home copy can crossfade underneath
+    const hashContentNode = document.querySelector('.hash-page-content');
+    if (hashContentNode) {
+      hashContentNode.style.pointerEvents = 'none';
+      hashContentNode.style.visibility = 'visible';
+      hashContentNode.style.opacity = '1';
+      gsap.killTweensOf(hashContentNode);
+    }
+    const hashBackgroundNode = document.querySelector('.hash-page-background');
+    if (hashBackgroundNode) {
+      gsap.killTweensOf(hashBackgroundNode);
+      hashBackgroundNode.style.visibility = 'visible';
+      hashBackgroundNode.style.opacity = '1';
     }
 
     // Expansion sizing same as link flow
@@ -975,123 +1076,152 @@ export default function BlobCursorDither({
         currentSizeMultiplier.current = expansionMultiplier.current;
       },
       onComplete: () => {
-        if (activateMaskForTransition) {
-          // Clear masking at peak
-          setMaskActive(false);
-          const targets = forEachMaskTarget(targetEl => {
-            targetEl.style.clipPath = "none";
-            targetEl.style.webkitClipPath = "none";
-            targetEl.style.opacity = "1";
-            targetEl.style.visibility = "visible";
-          });
-          if (targets.length) {
-            clipPathCacheRef.current = "none";
-          }
+        const fadeTargets = [];
+        if (hashContentNode) {
+          hashContentNode.style.visibility = 'visible';
+          fadeTargets.push(hashContentNode);
+        }
+        if (hashBackgroundNode) {
+          hashBackgroundNode.style.visibility = 'visible';
+          fadeTargets.push(hashBackgroundNode);
         }
 
-        // Clear any temporary background set previously
-        document.body.style.backgroundColor = '';
+        const proceedAfterContentHidden = () => {
+          document.body.style.backgroundColor = '';
 
-        // Ensure original side links are hidden until we finish the sequence
-        document.querySelectorAll('.side-links:not([data-floating-links])').forEach(nav => {
-          nav.style.display = 'none';
-        });
+          if (activateMaskForTransition) {
+            setMaskActive(false);
+            const targets = forEachMaskTarget(targetEl => {
+              targetEl.style.clipPath = "none";
+              targetEl.style.webkitClipPath = "none";
+              targetEl.style.opacity = "1";
+              targetEl.style.visibility = "visible";
+            });
+            if (targets.length) {
+              clipPathCacheRef.current = "none";
+            }
+          }
 
-        // Hide blobs to swap color/quality and shrink back
-        gsap.to(blobOpacity, {
-          current: 0,
-          duration: 0.3,
-          ease: "power2.out",
-          onComplete: () => {
-            // Change blob color back to black for home
-            rgb.current = { r: 0, g: 0, b: 0 };
+          // Hide blobs to swap color/quality and shrink back
+          gsap.to(blobOpacity, {
+            current: 0,
+            duration: 0.25,
+            ease: "power2.out",
+            onComplete: () => {
+              // Shrink back to original size while hidden
+              gsap.to(expansionMultiplier, {
+                current: 1,
+                duration: 0.4,
+                ease: "power2.out",
+                onUpdate: () => {
+                  currentSizeMultiplier.current = expansionMultiplier.current;
+                },
+                onComplete: () => {
+                  rgb.current = { ...baseColorRef.current };
 
-            // Shrink back to original size while hidden
-            gsap.to(expansionMultiplier, {
-              current: 1,
-              duration: 0.4,
-              ease: "power2.out",
-              onUpdate: () => {
-                currentSizeMultiplier.current = expansionMultiplier.current;
-              },
-              onComplete: () => {
-                // Restore resolution/blur quality
-                resolutionTween.current?.kill();
-                resolutionTween.current = gsap.to(resolutionMultiplier, {
-                  current: 1,
-                  duration: 0.6,
-                  ease: "power2.inOut"
-                });
-
-                isExpanding.current = false;
-                isCursorFrozen.current = false;
-
-                // Prepare cursor tracking to resume smoothly
-                const { x: resumeX, y: resumeY } = latestPointerRef.current;
-                if (Number.isFinite(resumeX) && Number.isFinite(resumeY)) {
-                  for (let i = 0; i < trailCount; i++) {
-                    if (quickX.current[i]) quickX.current[i](resumeX);
-                    if (quickY.current[i]) quickY.current[i](resumeY);
-                  }
-                }
-
-                // Fade blobs back in
-                setTimeout(() => {
-                  if (temporarilyReenabled.current) {
-                    disableBlob();
-                    temporarilyReenabled.current = false;
-                  }
-
-                  gsap.to(blobOpacity, {
+                  // Restore resolution/blur quality
+                  resolutionTween.current?.kill();
+                  resolutionTween.current = gsap.to(resolutionMultiplier, {
                     current: 1,
-                    duration: 0.8,
-                    ease: "power2.inOut",
-                    onComplete: () => {
-                      // Unhide original side link columns and remove floating copies
-                      document.querySelectorAll('.side-links:not([data-floating-links])').forEach(nav => {
-                        nav.style.display = '';
-                      });
-                      document.querySelectorAll('[data-floating-links="true"]').forEach(node => node.remove());
-                      // Restore home logos for the base state
-                      document.querySelectorAll('#site-logo, #site-logo-solid').forEach(logo => {
-                        logo.style.display = '';
-                      });
-
-                      // Reset blob layer z-index
-                      if (wrapRef.current) {
-                        wrapRef.current.style.zIndex = String(zIndex);
-                      }
-
-                      // Notify parent that we're done returning (so it can re-enable dither, etc.)
-                      if (onReturnComplete) onReturnComplete();
-
-                      // Navigate back to base URL (remove hash) after fade-in
-                      try {
-                        window.history.replaceState({}, '', baseUrl);
-                      } catch (err) {
-                        window.location.href = baseUrl;
-                      }
-
-                      setMaskActive(false);
-                      const targets = forEachMaskTarget(targetEl => {
-                        targetEl.style.clipPath = "none";
-                        targetEl.style.webkitClipPath = "none";
-                        targetEl.style.opacity = "0";
-                        targetEl.style.visibility = "hidden";
-                      });
-                      if (targets.length) {
-                        clipPathCacheRef.current = "none";
-                      }
-                    }
+                    duration: 0.6,
+                    ease: "power2.inOut"
                   });
-                }, 50);
+
+                  isExpanding.current = false;
+                  isCursorFrozen.current = false;
+
+                  // Prepare cursor tracking to resume smoothly
+                  const { x: resumeX, y: resumeY } = latestPointerRef.current;
+                  if (Number.isFinite(resumeX) && Number.isFinite(resumeY)) {
+                    for (let i = 0; i < trailCount; i++) {
+                      if (quickX.current[i]) quickX.current[i](resumeX);
+                      if (quickY.current[i]) quickY.current[i](resumeY);
+                    }
+                  }
+
+                  // Fade blobs back in
+                  setTimeout(() => {
+                    if (temporarilyReenabled.current) {
+                      disableBlob();
+                      temporarilyReenabled.current = false;
+                    }
+
+                    // Restore blob layer z-index before fading back in so the canvas
+                    // returns to its normal stacking order while it fades into view.
+                    resetBlobZIndex();
+
+                    gsap.to(blobOpacity, {
+                      current: 1,
+                      duration: 0.8,
+                      ease: "power2.inOut",
+                      onComplete: () => {
+                        // Restore home logos for the base state
+                        document.querySelectorAll('#site-logo, #site-logo-solid').forEach(logo => {
+                          logo.style.display = '';
+                        });
+                        document.querySelectorAll('.side-links:not([data-floating-links])').forEach(nav => {
+                          if (nav.closest('.home-mask-content')) {
+                            return;
+                          }
+                          nav.style.display = '';
+                        });
+
+                        // Reset blob layer z-index
+                        resetBlobZIndex();
+
+                        // Notify parent that we're done returning (so it can re-enable dither, etc.)
+                        if (onReturnComplete) onReturnComplete();
+
+                        // Navigate back to base URL (remove hash) after fade-in
+                        try {
+                          window.history.replaceState({}, '', baseUrl);
+                        } catch (err) {
+                          window.location.href = baseUrl;
+                        }
+
+                        resetBlobZIndex();
+
+                        setMaskActive(false);
+                        const targets = forEachMaskTarget(targetEl => {
+                          targetEl.style.clipPath = "none";
+                          targetEl.style.webkitClipPath = "none";
+                          targetEl.style.opacity = "0";
+                          targetEl.style.visibility = "hidden";
+                        });
+                        if (targets.length) {
+                          clipPathCacheRef.current = "none";
+                        }
+                      }
+                    });
+                  }, 50);
+                }
+              });
+            }
+          });
+        };
+
+        const fadeDuration = 0.35;
+        if (fadeTargets.length === 0) {
+          proceedAfterContentHidden();
+        } else {
+          let remaining = fadeTargets.length;
+          fadeTargets.forEach(node => {
+            gsap.to(node, {
+              opacity: 0,
+              duration: fadeDuration,
+              ease: "power2.out",
+              onComplete: () => {
+                node.style.visibility = 'hidden';
+                if (--remaining <= 0) {
+                  proceedAfterContentHidden();
+                }
               }
             });
-          }
-        });
+          });
+        }
       }
     });
-  }, [sizes, blurPx, zIndex, disableBlob, isMaskMode, maskActivation, onReturnStart, onReturnComplete, setMaskActive, forEachMaskTarget]);
+  }, [sizes, blurPx, zIndex, disableBlob, isMaskMode, maskActivation, onReturnStart, onReturnComplete, setMaskActive, forEachMaskTarget, setActiveMaskGroup, resetBlobZIndex]);
 
   useEffect(() => {
     resize();
@@ -1397,11 +1527,8 @@ export default function BlobCursorDither({
       // Draw all rects in one single fill operation
       outCtx.clearRect(startX, startY, endX - startX, endY - startY);
       outCtx.globalAlpha = 1;
-      if (maskActive) {
-        outCtx.fillStyle = maskColorRef.current;
-      } else {
-        outCtx.fillStyle = `rgb(${r},${g},${b})`;
-      }
+      const shouldUseMaskColor = maskActive && activeMaskGroupRef.current !== "home";
+      outCtx.fillStyle = shouldUseMaskColor ? maskColorRef.current : `rgb(${r},${g},${b})`;
       outCtx.fill(path);
 
       if (shouldUpdateCircleClip) {
