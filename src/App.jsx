@@ -27,6 +27,7 @@ function LogoSvg({ id, className, style, ariaLabel, ariaHidden }) {
   );
 }
 
+
 export default function App() {
   const [isMobile, setIsMobile] = useState(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
   const [logoSize, setLogoSize] = useState(isMobile ? "70vw" : "40vw");
@@ -45,6 +46,8 @@ export default function App() {
   const waveColor = isMobile ? [0.3, 0.3, 0.3] : [0.2, 0.2, 0.2];
   const blobPixelSize = 2;
   const blobBaseZIndex = 55;
+  const blobHomeZIndex = 8; // Keep blob beneath home logo + side links
+  const blobMaskZIndex = 30; // Ensure mask layers sit above the blob during transitions
   const homeBlobColor = "#000000";
   const hashBlobColor = "#cbcbcb";
 
@@ -120,29 +123,39 @@ export default function App() {
   const homeMaskRefs = useMemo(() => [homeMaskContentRef], [homeMaskContentRef]);
   const backgroundDitherRef = useRef(null);
   const backgroundDitherFadeTween = useRef(null);
+  const lastSideLinksTopRef = useRef(null);
 
   useEffect(() => {
     const node = backgroundDitherRef.current;
     backgroundDitherFadeTween.current?.kill();
     backgroundDitherFadeTween.current = null;
 
-    if (isReturnTransition && ditherReady && ditherEnabled && node) {
-      gsap.set(node, { opacity: 0 });
+    if (!node || !ditherReady) {
+      return () => {
+        backgroundDitherFadeTween.current?.kill();
+        backgroundDitherFadeTween.current = null;
+      };
+    }
+
+    if (!ditherEnabled) {
       backgroundDitherFadeTween.current = gsap.to(node, {
-        opacity: 1,
-        delay: 0.3,
-        duration: 2,
+        opacity: 0,
+        duration: 0.35,
         ease: "power2.inOut"
       });
-    } else if (node) {
-      gsap.set(node, { opacity: 1 });
+    } else {
+      backgroundDitherFadeTween.current = gsap.to(node, {
+        opacity: 1,
+        duration: isHashTransitioning ? 1.6 : 0.8,
+        ease: "power2.inOut"
+      });
     }
 
     return () => {
       backgroundDitherFadeTween.current?.kill();
       backgroundDitherFadeTween.current = null;
     };
-  }, [isReturnTransition, ditherReady, ditherEnabled]);
+  }, [isHashTransitioning, ditherReady, ditherEnabled]);
 
   useEffect(() => {
     if (ditherReady) return;
@@ -221,8 +234,15 @@ export default function App() {
 
     const setTop = () => {
       const r = logo.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) {
+        if (lastSideLinksTopRef.current != null) {
+          document.documentElement.style.setProperty("--side-links-top", `${lastSideLinksTopRef.current}px`);
+        }
+        return;
+      }
       // a little breathing room below the logo
-      const top = Math.max(0, Math.round(r.bottom + 12)); 
+      const top = Math.max(0, Math.round(r.bottom + 12));
+      lastSideLinksTopRef.current = top;
       document.documentElement.style.setProperty("--side-links-top", `${top}px`);
     };
 
@@ -248,8 +268,13 @@ export default function App() {
         <h3 className="legal">© 2025 Yuniverse Australia. All rights reserved.</h3>
       </div>
 
-        {ditherReady && ditherEnabled && (
-          <div className="layer app-background-dither" ref={backgroundDitherRef}>
+        {ditherReady && (
+          <div
+            className="layer app-background-dither"
+            ref={backgroundDitherRef}
+            aria-hidden={!ditherEnabled && !isHashTransitioning}
+            style={{ visibility: ditherEnabled || isHashTransitioning ? "visible" : "hidden" }}
+          >
             <Dither
               waveColor={waveColor}
               disableAnimation={ditherPaused}
@@ -369,6 +394,7 @@ export default function App() {
             setDitherEnabled(true);
             setDitherPaused(false);
             setIsHashTransitioning(false);
+            setIsHashPage(false);
           }}
           mode="mask"
           maskColor="#000000"
@@ -378,6 +404,8 @@ export default function App() {
           maskActivation="transition"
           hashOverlayActive={isHashPage}
           zIndex={blobBaseZIndex}
+          homeZIndex={blobHomeZIndex}
+          maskZIndex={blobMaskZIndex}
           homeMaskSelector=".home-mask-target"
         />
       )}
@@ -424,6 +452,13 @@ export default function App() {
           <li><a className="side-links__a" href="#linktwo">LinkTwo</a></li>
         </ul>
       </nav>
+
+      <h3
+        className={`small-message small-message--base ${isHashPage || isHashTransitioning ? "small-message--base-hidden" : ""}`}
+        aria-hidden={isHashPage || isHashTransitioning}
+      >
+        first to use discord link:「yannblu」
+      </h3>
     </div>
   );
 }

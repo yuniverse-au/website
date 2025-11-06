@@ -73,6 +73,8 @@ export default function BlobCursorDither({
   color = "#000000",
   hashColor = "#ffffff",
   zIndex = 1,
+  homeZIndex = zIndex,
+  maskZIndex = zIndex,
   colorNum = 4,
   pixelSize = 2,
   whiteCutoff = 0.7,
@@ -236,8 +238,8 @@ export default function BlobCursorDither({
   const resetBlobZIndex = useCallback(() => {
     if (!wrapRef.current) return;
     const hasHash = window.location.hash && window.location.hash.length > 1;
-    wrapRef.current.style.zIndex = hasHash ? String(HASH_IDLE_Z_INDEX) : String(zIndex);
-  }, [zIndex]);
+    wrapRef.current.style.zIndex = hasHash ? String(HASH_IDLE_Z_INDEX) : String(homeZIndex);
+  }, [homeZIndex]);
 
   useEffect(() => {
     maskColorRef.current = maskColor;
@@ -721,13 +723,13 @@ export default function BlobCursorDither({
       const computedNav = window.getComputedStyle(nav);
       const navClone = nav.cloneNode(true);
 
-      navClone.setAttribute('data-floating-links', 'true');
-      navClone.setAttribute('aria-hidden', 'true');
-      navClone.style.position = 'fixed';
-      navClone.style.pointerEvents = 'none';
-      navClone.style.mixBlendMode = computedNav.mixBlendMode;
-      navClone.style.filter = computedNav.filter;
-      navClone.style.zIndex = nav.classList.contains('side-links--diff') ? '12' : '13';
+  navClone.setAttribute('data-floating-links', 'true');
+  navClone.setAttribute('aria-hidden', 'true');
+  navClone.style.position = 'fixed';
+  navClone.style.pointerEvents = 'none';
+  navClone.style.mixBlendMode = computedNav.mixBlendMode;
+  navClone.style.filter = computedNav.filter;
+  navClone.style.zIndex = '100';
 
       const anchorNodes = Array.from(navClone.querySelectorAll('.side-links__a'));
       anchorNodes.forEach(anchor => {
@@ -771,7 +773,7 @@ export default function BlobCursorDither({
     
     // Raise blob above everything (above both hash content and floating links)
     if (wrapRef.current) {
-      wrapRef.current.style.zIndex = String(zIndex);
+      wrapRef.current.style.zIndex = String(maskZIndex);
     }
     
   // Initialize color transition tracker to the active blob color
@@ -841,17 +843,15 @@ export default function BlobCursorDither({
           }
         }
         
-        // Hide original side links now that the blob has fully expanded
-        // but keep masked/home copies and floating replicas visible
+        // Hide the anchored logos so only the masked clone remains visible
+        document.querySelectorAll('#site-logo, #site-logo-solid').forEach(logo => {
+          logo.style.display = 'none';
+        });
         document.querySelectorAll('.side-links:not([data-floating-links])').forEach(nav => {
           if (nav.closest('.home-mask-content')) {
             return;
           }
           nav.style.display = 'none';
-        });
-        // Hide the anchored logos so only the masked clone remains visible
-        document.querySelectorAll('#site-logo, #site-logo-solid').forEach(logo => {
-          logo.style.display = 'none';
         });
         
         // Phase 3: Hide blobs and shrink back to original size
@@ -1034,9 +1034,9 @@ export default function BlobCursorDither({
     magnetState.current.active = false;
     magnetState.current.type = null;
 
-    // Raise blob above everything (above both hash content and floating links)
+    // Raise blob to transition layer beneath mask
     if (wrapRef.current) {
-      wrapRef.current.style.zIndex = String(zIndex);
+      wrapRef.current.style.zIndex = String(maskZIndex);
     }
 
     // Ease hash layers out so the masked home copy can crossfade underneath
@@ -1165,7 +1165,6 @@ export default function BlobCursorDither({
                           }
                           nav.style.display = '';
                         });
-
                         // Reset blob layer z-index
                         resetBlobZIndex();
 
@@ -1766,7 +1765,7 @@ export default function BlobCursorDither({
         inset: 0,
         width: "100%",
         height: "100%",
-        zIndex, 
+        zIndex: homeZIndex, 
         pointerEvents: "none",
         overflow: "hidden" // Clip extended canvas at viewport edges
       }}

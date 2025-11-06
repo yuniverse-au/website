@@ -209,6 +209,8 @@ function DitheredWaves({
     enableMouseInteraction: new THREE.Uniform(enableMouseInteraction ? 1 : 0),
     mouseRadius: new THREE.Uniform(mouseRadius)
   });
+  const pauseStartRef = useRef(null);
+  const pausedOffsetRef = useRef(0);
 
   useEffect(() => {
     const dpr = gl.getPixelRatio();
@@ -223,9 +225,19 @@ function DitheredWaves({
   const prevColor = useRef([...waveColor]);
   useFrame(({ clock }) => {
     const u = waveUniformsRef.current;
+    const elapsed = clock.getElapsedTime();
 
-    if (!disableAnimation) {
-      u.time.value = clock.getElapsedTime();
+    if (disableAnimation) {
+      if (pauseStartRef.current === null) {
+        pauseStartRef.current = elapsed;
+      }
+      u.time.value = pauseStartRef.current - pausedOffsetRef.current;
+    } else {
+      if (pauseStartRef.current !== null) {
+        pausedOffsetRef.current += elapsed - pauseStartRef.current;
+        pauseStartRef.current = null;
+      }
+      u.time.value = elapsed - pausedOffsetRef.current;
     }
 
     if (u.waveSpeed.value !== waveSpeed) u.waveSpeed.value = waveSpeed;

@@ -79,8 +79,33 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
 }
 
 .home-mask-content .home-mask-target {
-  position: relative;
   z-index: 1; /* Ensure masked home elements render above the masking canvas */
+}
+
+.home-mask-content .logo.home-mask-target {
+  position: absolute;
+}
+
+.home-mask-content .logo--solid.home-mask-target {
+  mix-blend-mode: normal;
+  filter: none;
+  color: #000;
+  fill: #000;
+  opacity: 1;
+}
+
+.home-mask-content .side-links.home-mask-target {
+  position: fixed;
+}
+
+.home-mask-content .side-links--solid.home-mask-target {
+  mix-blend-mode: normal;
+  color: #000;
+  opacity: 1;
+}
+
+.home-mask-content .side-links--solid.home-mask-target .side-links__a {
+  color: #000;
 }
 
 .app--hash .hash-page-content {
@@ -253,6 +278,16 @@ h1, h2, h3 {
   color: #000;
   font-weight: 400;
   font-size: clamp(1rem, 0.5rem + 1.2vw, 1.2rem);
+}
+
+.small-message--base {
+  mix-blend-mode: normal;
+  opacity: 1;
+}
+
+.small-message--base-hidden {
+  opacity: 0;
+  visibility: hidden;
 }
 
 .title {
