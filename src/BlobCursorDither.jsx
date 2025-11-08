@@ -213,7 +213,13 @@ export default function BlobCursorDither({
           window.location.href = target;
         }
       } else {
-        window.location.href = target;
+        const { origin, pathname, search } = window.location;
+        const currentBase = `${origin}${pathname}${search}`;
+        if (target === currentBase) {
+          window.history.replaceState({}, "", target);
+        } else {
+          window.location.href = target;
+        }
       }
     } catch (err) {
       window.location.href = target;
@@ -960,8 +966,9 @@ export default function BlobCursorDither({
 
   e.preventDefault();
 
-  pendingNavigationRef.current = null;
-  const baseUrl = window.location.origin + window.location.pathname;
+  const { origin, pathname, search } = window.location;
+  const baseUrl = `${origin}${pathname}${search}`;
+  pendingNavigationRef.current = baseUrl;
 
     const wasBlobDisabled = isBlobDisabled.current;
     const activateMaskForTransition = isMaskMode && maskActivation === "transition";
@@ -1076,148 +1083,133 @@ export default function BlobCursorDither({
         currentSizeMultiplier.current = expansionMultiplier.current;
       },
       onComplete: () => {
-        const fadeTargets = [];
+        document.body.style.backgroundColor = '';
+
+        gsap.killTweensOf(blobOpacity);
+        blobOpacity.current = 0;
+
         if (hashContentNode) {
-          hashContentNode.style.visibility = 'visible';
-          fadeTargets.push(hashContentNode);
+          gsap.killTweensOf(hashContentNode);
+          hashContentNode.style.pointerEvents = 'none';
+          hashContentNode.style.opacity = '0';
+          hashContentNode.style.visibility = 'hidden';
         }
         if (hashBackgroundNode) {
-          hashBackgroundNode.style.visibility = 'visible';
-          fadeTargets.push(hashBackgroundNode);
+          gsap.killTweensOf(hashBackgroundNode);
+          hashBackgroundNode.style.opacity = '0';
+          hashBackgroundNode.style.visibility = 'hidden';
         }
 
-        const proceedAfterContentHidden = () => {
-          document.body.style.backgroundColor = '';
+        document.querySelectorAll('.side-links--diff').forEach(nav => {
+          nav.style.display = 'none';
+        });
 
-          if (activateMaskForTransition) {
+        if (activateMaskForTransition) {
+          setMaskActive(false);
+          const targets = forEachMaskTarget(targetEl => {
+            targetEl.style.clipPath = "none";
+            targetEl.style.webkitClipPath = "none";
+            targetEl.style.opacity = "1";
+            targetEl.style.visibility = "visible";
+          });
+          if (targets.length) {
+            clipPathCacheRef.current = "none";
+          }
+        }
+
+        expansionMultiplier.current = 1;
+        currentSizeMultiplier.current = 1;
+
+        rgb.current = { ...baseColorRef.current };
+
+        resolutionTween.current?.kill();
+        resolutionTween.current = null;
+        resolutionMultiplier.current = 1;
+
+        isExpanding.current = false;
+        isCursorFrozen.current = false;
+
+        const { x: resumeX, y: resumeY } = latestPointerRef.current;
+        if (Number.isFinite(resumeX) && Number.isFinite(resumeY)) {
+          for (let i = 0; i < trailCount; i++) {
+            if (quickX.current[i]) quickX.current[i](resumeX);
+            if (quickY.current[i]) quickY.current[i](resumeY);
+          }
+        }
+
+        setTimeout(() => {
+          if (temporarilyReenabled.current) {
+            disableBlob();
+            temporarilyReenabled.current = false;
+
+            document.querySelectorAll('#site-logo, #site-logo-solid').forEach(logo => {
+              logo.style.display = '';
+            });
+            document.querySelectorAll('.side-links:not([data-floating-links])').forEach(nav => {
+              if (nav.closest('.home-mask-content')) {
+                return;
+              }
+              nav.style.display = '';
+            });
+
+            resetBlobZIndex();
+
+            if (onReturnComplete) onReturnComplete();
+
+            executePendingNavigation(baseUrl);
+
             setMaskActive(false);
             const targets = forEachMaskTarget(targetEl => {
               targetEl.style.clipPath = "none";
               targetEl.style.webkitClipPath = "none";
-              targetEl.style.opacity = "1";
-              targetEl.style.visibility = "visible";
+              targetEl.style.opacity = "0";
+              targetEl.style.visibility = "hidden";
             });
             if (targets.length) {
               clipPathCacheRef.current = "none";
             }
+
+            return;
           }
 
-          // Hide blobs to swap color/quality and shrink back
+          resetBlobZIndex();
+
           gsap.to(blobOpacity, {
-            current: 0,
-            duration: 0.25,
-            ease: "power2.out",
+            current: 1,
+            duration: 0.8,
+            ease: "power2.inOut",
             onComplete: () => {
-              // Shrink back to original size while hidden
-              gsap.to(expansionMultiplier, {
-                current: 1,
-                duration: 0.4,
-                ease: "power2.out",
-                onUpdate: () => {
-                  currentSizeMultiplier.current = expansionMultiplier.current;
-                },
-                onComplete: () => {
-                  rgb.current = { ...baseColorRef.current };
-
-                  // Restore resolution/blur quality
-                  resolutionTween.current?.kill();
-                  resolutionTween.current = gsap.to(resolutionMultiplier, {
-                    current: 1,
-                    duration: 0.6,
-                    ease: "power2.inOut"
-                  });
-
-                  isExpanding.current = false;
-                  isCursorFrozen.current = false;
-
-                  // Prepare cursor tracking to resume smoothly
-                  const { x: resumeX, y: resumeY } = latestPointerRef.current;
-                  if (Number.isFinite(resumeX) && Number.isFinite(resumeY)) {
-                    for (let i = 0; i < trailCount; i++) {
-                      if (quickX.current[i]) quickX.current[i](resumeX);
-                      if (quickY.current[i]) quickY.current[i](resumeY);
-                    }
-                  }
-
-                  // Fade blobs back in
-                  setTimeout(() => {
-                    if (temporarilyReenabled.current) {
-                      disableBlob();
-                      temporarilyReenabled.current = false;
-                    }
-
-                    // Restore blob layer z-index before fading back in so the canvas
-                    // returns to its normal stacking order while it fades into view.
-                    resetBlobZIndex();
-
-                    gsap.to(blobOpacity, {
-                      current: 1,
-                      duration: 0.8,
-                      ease: "power2.inOut",
-                      onComplete: () => {
-                        // Restore home logos for the base state
-                        document.querySelectorAll('#site-logo, #site-logo-solid').forEach(logo => {
-                          logo.style.display = '';
-                        });
-                        document.querySelectorAll('.side-links:not([data-floating-links])').forEach(nav => {
-                          if (nav.closest('.home-mask-content')) {
-                            return;
-                          }
-                          nav.style.display = '';
-                        });
-                        // Reset blob layer z-index
-                        resetBlobZIndex();
-
-                        // Notify parent that we're done returning (so it can re-enable dither, etc.)
-                        if (onReturnComplete) onReturnComplete();
-
-                        // Navigate back to base URL (remove hash) after fade-in
-                        try {
-                          window.history.replaceState({}, '', baseUrl);
-                        } catch (err) {
-                          window.location.href = baseUrl;
-                        }
-
-                        resetBlobZIndex();
-
-                        setMaskActive(false);
-                        const targets = forEachMaskTarget(targetEl => {
-                          targetEl.style.clipPath = "none";
-                          targetEl.style.webkitClipPath = "none";
-                          targetEl.style.opacity = "0";
-                          targetEl.style.visibility = "hidden";
-                        });
-                        if (targets.length) {
-                          clipPathCacheRef.current = "none";
-                        }
-                      }
-                    });
-                  }, 50);
-                }
+              document.querySelectorAll('#site-logo, #site-logo-solid').forEach(logo => {
+                logo.style.display = '';
               });
+              document.querySelectorAll('.side-links:not([data-floating-links])').forEach(nav => {
+                if (nav.closest('.home-mask-content')) {
+                  return;
+                }
+                nav.style.display = '';
+              });
+
+              resetBlobZIndex();
+
+              if (onReturnComplete) onReturnComplete();
+
+              executePendingNavigation();
+
+              resetBlobZIndex();
+
+              setMaskActive(false);
+              const targets = forEachMaskTarget(targetEl => {
+                targetEl.style.clipPath = "none";
+                targetEl.style.webkitClipPath = "none";
+                targetEl.style.opacity = "0";
+                targetEl.style.visibility = "hidden";
+              });
+              if (targets.length) {
+                clipPathCacheRef.current = "none";
+              }
             }
           });
-        };
-
-        const fadeDuration = 0.35;
-        if (fadeTargets.length === 0) {
-          proceedAfterContentHidden();
-        } else {
-          let remaining = fadeTargets.length;
-          fadeTargets.forEach(node => {
-            gsap.to(node, {
-              opacity: 0,
-              duration: fadeDuration,
-              ease: "power2.out",
-              onComplete: () => {
-                node.style.visibility = 'hidden';
-                if (--remaining <= 0) {
-                  proceedAfterContentHidden();
-                }
-              }
-            });
-          });
-        }
+        }, 50);
       }
     });
   }, [sizes, blurPx, zIndex, disableBlob, isMaskMode, maskActivation, onReturnStart, onReturnComplete, setMaskActive, forEachMaskTarget, setActiveMaskGroup, resetBlobZIndex]);

@@ -124,6 +124,16 @@ export default function App() {
   const backgroundDitherRef = useRef(null);
   const backgroundDitherFadeTween = useRef(null);
   const lastSideLinksTopRef = useRef(null);
+  useEffect(() => () => {
+    const node = backgroundDitherRef.current;
+    if (!node) return;
+    node.classList.remove("home-mask-content");
+    node.classList.remove("home-mask-target");
+    node.style.clipPath = "none";
+    node.style.webkitClipPath = "none";
+    node.style.opacity = "";
+    node.style.visibility = "";
+  }, []);
 
   useEffect(() => {
     const node = backgroundDitherRef.current;
@@ -292,20 +302,6 @@ export default function App() {
         className="home-mask-content"
         ref={homeMaskContentRef}
       >
-        <div className="layer home-mask-target">
-          {ditherReady && (ditherEnabled || isReturnTransition) && (
-            <Dither
-              waveColor={waveColor}
-              disableAnimation={ditherPaused}
-              enableMouseInteraction={false}
-              mouseRadius={0.3}
-              colorNum={colorSteps}
-              waveAmplitude={0.3}
-              waveFrequency={0.8}
-              waveSpeed={0.04}
-            />
-          )}
-        </div>
 
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -384,12 +380,37 @@ export default function App() {
             setIsHashTransitioning(true);
           }}
           onReturnStart={() => {
+            const backgroundNode = backgroundDitherRef.current;
+            if (backgroundNode) {
+              backgroundNode.classList.add("home-mask-content");
+              backgroundNode.classList.add("home-mask-target");
+              backgroundNode.style.opacity = "1";
+              backgroundNode.style.visibility = "visible";
+            }
             setIsReturnTransition(true);
             setDitherEnabled(true);
             setDitherPaused(false);
             setIsHashTransitioning(true);
           }}
           onReturnComplete={() => {
+            const backgroundNode = backgroundDitherRef.current;
+            if (backgroundNode) {
+              backgroundNode.classList.remove("home-mask-content");
+              backgroundNode.classList.remove("home-mask-target");
+              const restoreStyles = () => {
+                const node = backgroundDitherRef.current;
+                if (!node) return;
+                node.style.clipPath = "none";
+                node.style.webkitClipPath = "none";
+                node.style.opacity = "1";
+                node.style.visibility = "visible";
+              };
+              if (typeof requestAnimationFrame === "function") {
+                requestAnimationFrame(restoreStyles);
+              } else {
+                setTimeout(restoreStyles, 0);
+              }
+            }
             setIsReturnTransition(false);
             setDitherEnabled(true);
             setDitherPaused(false);
