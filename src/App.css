@@ -184,7 +184,6 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
   fill: var(--hash-blob-color);
   z-index: 12;
   will-change: filter;
-  transition: color 1.8s ease, fill 1.8s ease, filter 1.8s ease;
 }
 
 .app--hash:not(.app--hash-transition) .logo-diff {
@@ -196,7 +195,6 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
   filter: none;
   color: var(--hash-blob-color);
   fill: var(--hash-blob-color);
-  transition: color 1.8s ease, fill 1.8s ease, filter 1.8s ease;
 }
 
 .logo--solid {

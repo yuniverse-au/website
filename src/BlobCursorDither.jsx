@@ -116,6 +116,9 @@ export default function BlobCursorDither({
   const baseColorRef = useRef(hexToRgb(color));
   const hashColorRef = useRef(hexToRgb(hashColor));
   const rgb = useRef(hashOverlayActive ? { ...hashColorRef.current } : { ...baseColorRef.current });
+  const maskSizeMultiplierRef = useRef(1);
+  const maskSizeTweenRef = useRef(null);
+  const autoReactivateOnMoveRef = useRef(false);
 
   const getMaskTargetsForGroup = useCallback((group) => {
     const targets = [];
@@ -247,6 +250,95 @@ export default function BlobCursorDither({
     wrapRef.current.style.zIndex = hasHash ? String(HASH_IDLE_Z_INDEX) : String(homeZIndex);
   }, [homeZIndex]);
 
+  const restoreHomeContent = useCallback((options = {}) => {
+    const { keepVisibleOverrides = false } = options;
+
+    document.querySelectorAll('#site-logo, #site-logo-solid').forEach(logo => {
+      if (keepVisibleOverrides) {
+        logo.style.display = 'block';
+        logo.style.visibility = 'visible';
+        logo.style.opacity = '1';
+      } else {
+        logo.style.display = '';
+        logo.style.visibility = 'visible';
+        logo.style.opacity = '';
+      }
+      logo.style.zIndex = '';
+    });
+
+    document.querySelectorAll('.side-links:not([data-floating-links])').forEach(nav => {
+      if (nav.closest('.home-mask-content')) {
+        return;
+      }
+      if (keepVisibleOverrides) {
+        nav.style.display = 'flex';
+        nav.style.visibility = 'visible';
+        nav.style.opacity = '1';
+      } else {
+        nav.style.display = '';
+        nav.style.visibility = 'visible';
+        nav.style.opacity = '';
+      }
+      nav.style.zIndex = '';
+    });
+
+    const baseMessage = document.querySelector('.small-message--base');
+    if (baseMessage) {
+      if (keepVisibleOverrides) {
+        baseMessage.classList.remove('small-message--base-hidden');
+        baseMessage.style.display = '';
+        baseMessage.style.visibility = 'visible';
+        baseMessage.style.opacity = '1';
+      } else {
+        baseMessage.style.display = '';
+        baseMessage.style.visibility = 'visible';
+        baseMessage.style.opacity = '';
+      }
+      baseMessage.style.zIndex = '';
+    }
+
+    const ditherLayer = document.querySelector('.app-background-dither');
+    if (ditherLayer) {
+      ditherLayer.style.display = '';
+      ditherLayer.style.visibility = 'visible';
+      ditherLayer.style.opacity = '';
+    }
+
+    document.querySelectorAll('[data-floating-links="true"]').forEach(node => {
+      node.remove();
+    });
+  }, []);
+
+  const revealHomeLayerDuringReturn = useCallback(() => {
+    const targetZ = Math.max(0, Number(homeZIndex) - 1) || 0;
+
+    document.querySelectorAll('#site-logo, #site-logo-solid').forEach(logo => {
+      logo.style.display = 'block';
+      logo.style.visibility = 'visible';
+      logo.style.opacity = '';
+      logo.style.zIndex = String(targetZ);
+    });
+
+    document.querySelectorAll('.side-links:not([data-floating-links])').forEach(nav => {
+      if (nav.closest('.home-mask-content')) {
+        return;
+      }
+      nav.style.display = 'flex';
+      nav.style.visibility = 'visible';
+      nav.style.opacity = '';
+      nav.style.zIndex = String(targetZ);
+    });
+
+    const baseMessage = document.querySelector('.small-message--base');
+    if (baseMessage) {
+      baseMessage.classList.remove('small-message--base-hidden');
+      baseMessage.style.display = '';
+      baseMessage.style.visibility = 'visible';
+      baseMessage.style.opacity = '';
+      baseMessage.style.zIndex = String(targetZ);
+    }
+  }, [homeZIndex]);
+
   useEffect(() => {
     maskColorRef.current = maskColor;
   }, [maskColor]);
@@ -293,6 +385,56 @@ export default function BlobCursorDither({
   const isCursorFrozen = useRef(false);
   const latestPointerRef = useRef({ x: 0, y: 0 });
   const pendingNavigationRef = useRef(null);
+  const pointerInsideViewportRef = useRef(true);
+  const logoFallbackPositionRef = useRef({ x: 0, y: 0 });
+  const returnFollowActiveRef = useRef(false);
+
+  const scaledToViewport = useCallback((point) => {
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+      return null;
+    }
+    const DPR = DPRRef.current || 1;
+    const padding = CANVAS_PADDING;
+    return {
+      x: point.x / DPR - padding,
+      y: point.y / DPR - padding
+    };
+  }, []);
+
+  const getLatestViewportPointer = useCallback(() => {
+    const { x, y } = latestPointerRef.current;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return null;
+    }
+    return scaledToViewport({ x, y });
+  }, [scaledToViewport]);
+
+  const computeFullscreenMultiplier = useCallback((pointerPosition = null) => {
+    const smallestBlob = sizes.length > 0 ? Math.min(...sizes) : 200;
+    if (!Number.isFinite(smallestBlob) || smallestBlob <= 0) {
+      return 1;
+    }
+
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const viewportDiagonal = Math.hypot(viewportWidth, viewportHeight);
+    const defaultX = viewportWidth / 2;
+    const defaultY = viewportHeight / 2;
+    const px = pointerPosition && Number.isFinite(pointerPosition.x) ? pointerPosition.x : defaultX;
+    const py = pointerPosition && Number.isFinite(pointerPosition.y) ? pointerPosition.y : defaultY;
+    const clampedX = Math.min(Math.max(px, 0), viewportWidth);
+    const clampedY = Math.min(Math.max(py, 0), viewportHeight);
+    const distances = [
+      Math.hypot(clampedX - 0, clampedY - 0),
+      Math.hypot(clampedX - viewportWidth, clampedY - 0),
+      Math.hypot(clampedX - 0, clampedY - viewportHeight),
+      Math.hypot(clampedX - viewportWidth, clampedY - viewportHeight)
+    ];
+    const maxDistanceToCorner = Math.max(...distances, viewportDiagonal * 0.5);
+    const coveragePadding = 1.04;
+    const targetDiameter = maxDistanceToCorner * 2 * coveragePadding;
+    return targetDiameter / smallestBlob;
+  }, [sizes]);
 
   useEffect(() => {
     const parsedBase = hexToRgb(color);
@@ -359,6 +501,47 @@ export default function BlobCursorDither({
   // Quick tweens to avoid re-creating on every move
   const quickX = useRef([]);
   const quickY = useRef([]);
+
+  const setBlobTargetPosition = useCallback((targetX, targetY, { immediate = false, duration = null } = {}) => {
+    if (!Number.isFinite(targetX) || !Number.isFinite(targetY)) {
+      return;
+    }
+
+    latestPointerRef.current.x = targetX;
+    latestPointerRef.current.y = targetY;
+
+    const hasQuickTweens = Array.isArray(quickX.current) && quickX.current.length >= trailCount;
+    const useCustomTween = Number.isFinite(duration) && duration > 0;
+
+    for (let i = 0; i < trailCount; i++) {
+      const point = points.current[i];
+      if (!point) continue;
+
+      if (immediate || !hasQuickTweens || useCustomTween) {
+        gsap.killTweensOf(point);
+        if (immediate || !hasQuickTweens) {
+          point.x = targetX;
+          point.y = targetY;
+          prevPoints.current[i].x = targetX;
+          prevPoints.current[i].y = targetY;
+        }
+
+        if (useCustomTween) {
+          const staggeredDuration = Math.max(0.01, duration + i * 0.08);
+          gsap.to(point, {
+            x: targetX,
+            y: targetY,
+            duration: staggeredDuration,
+            ease: "power2.out"
+          });
+          continue;
+        }
+      }
+
+      quickX.current[i]?.(targetX);
+      quickY.current[i]?.(targetY);
+    }
+  }, [trailCount]);
   
   // Track last movement direction for off-screen animation
   const pendingFadeOut = useRef(false);
@@ -404,8 +587,13 @@ export default function BlobCursorDither({
     }
   }, []);
 
-  const disableBlob = useCallback(() => {
-    if (isBlobDisabled.current) return;
+  const disableBlob = useCallback((options = {}) => {
+    const { autoReactivateOnPointerMove = false } = options;
+
+    autoReactivateOnMoveRef.current = autoReactivateOnPointerMove;
+    if (isBlobDisabled.current) {
+      return;
+    }
 
     isBlobDisabled.current = true;
     temporarilyReenabled.current = false;
@@ -413,6 +601,9 @@ export default function BlobCursorDither({
     gsap.killTweensOf(resolutionMultiplier);
     gsap.killTweensOf(autoResolutionMultiplier);
     gsap.killTweensOf(blurScaleRef);
+    maskSizeTweenRef.current?.kill();
+    maskSizeTweenRef.current = null;
+    maskSizeMultiplierRef.current = 1;
     resolutionTween.current?.kill();
     resolutionTween.current = null;
     autoResolutionTween.current?.kill();
@@ -455,8 +646,69 @@ export default function BlobCursorDither({
     });
   }, []);
 
+  const reactivateBlob = useCallback((pointerInfo = null) => {
+    if (!isBlobDisabled.current) {
+      autoReactivateOnMoveRef.current = false;
+      return;
+    }
+
+    isBlobDisabled.current = false;
+    autoReactivateOnMoveRef.current = false;
+    temporarilyReenabled.current = false;
+    pendingFadeOut.current = false;
+
+    gsap.killTweensOf(blobOpacity);
+    gsap.killTweensOf(resolutionMultiplier);
+    gsap.killTweensOf(autoResolutionMultiplier);
+    gsap.killTweensOf(blurScaleRef);
+
+    resolutionTween.current?.kill();
+    resolutionTween.current = null;
+    autoResolutionTween.current?.kill();
+    autoResolutionTween.current = null;
+    blurScaleTween.current?.kill();
+    blurScaleTween.current = null;
+    maskSizeTweenRef.current?.kill();
+    maskSizeTweenRef.current = null;
+    maskSizeMultiplierRef.current = 1;
+
+    expansionMultiplier.current = 1;
+    currentSizeMultiplier.current = 1;
+    blobOpacity.current = 0;
+    resolutionMultiplier.current = 1;
+    autoResolutionMultiplier.current = 1;
+    blurScaleRef.current = 1;
+    slowFrameDebtRef.current = 0;
+    fastFrameStreakRef.current = 0;
+    isCursorFrozen.current = false;
+
+    const hasPointer = pointerInfo && Number.isFinite(pointerInfo.scaledX) && Number.isFinite(pointerInfo.scaledY);
+    if (hasPointer) {
+      latestPointerRef.current.x = pointerInfo.scaledX;
+      latestPointerRef.current.y = pointerInfo.scaledY;
+
+      for (let i = 0; i < trailCount; i++) {
+        const point = points.current[i];
+        if (!point) continue;
+        gsap.killTweensOf(point);
+        point.x = pointerInfo.scaledX;
+        point.y = pointerInfo.scaledY;
+        const prevPoint = prevPoints.current[i];
+        if (prevPoint) {
+          prevPoint.x = pointerInfo.scaledX;
+          prevPoint.y = pointerInfo.scaledY;
+        }
+      }
+    }
+
+    fadeInBlobs();
+  }, [fadeInBlobs, trailCount]);
+
   const onMove = useCallback((e) => {
     if (isBlobDisabled.current) return;
+
+    const wasOutsideViewport = !pointerInsideViewportRef.current;
+    pointerInsideViewportRef.current = true;
 
     const DPR = DPRRef.current;
     const padding = CANVAS_PADDING; // Must match padding in resize()
@@ -468,6 +720,11 @@ export default function BlobCursorDither({
     const pointerScaledY = (y + padding) * DPR;
     latestPointerRef.current.x = pointerScaledX;
     latestPointerRef.current.y = pointerScaledY;
+
+    if (returnFollowActiveRef.current && wasOutsideViewport) {
+      setBlobTargetPosition(pointerScaledX, pointerScaledY, { duration: 0.35 });
+      return;
+    }
 
     if (isCursorFrozen.current) {
       return;
@@ -606,19 +863,33 @@ export default function BlobCursorDither({
       quickX.current[i](scaledX);
       quickY.current[i](scaledY);
     }
-  }, [sizes, fadeInBlobs]);
+  }, [sizes, fadeInBlobs, setBlobTargetPosition]);
 
   const onLeave = useCallback(() => {
+    pointerInsideViewportRef.current = false;
+
+    if (returnFollowActiveRef.current) {
+      const { x: fallbackX, y: fallbackY } = logoFallbackPositionRef.current;
+      if (Number.isFinite(fallbackX) && Number.isFinite(fallbackY)) {
+        setBlobTargetPosition(fallbackX, fallbackY, { duration: 0.45 });
+      }
+    }
+
     if (isExpanding.current) {
       pendingFadeOut.current = true;
       return;
     }
 
     fadeOutBlobs();
-  }, [fadeOutBlobs]);
+  }, [fadeOutBlobs, setBlobTargetPosition]);
 
   const onEnter = useCallback(() => {
+    pointerInsideViewportRef.current = true;
     pendingFadeOut.current = false;
+
+    if (hashOverlayActive) {
+      return;
+    }
 
     // Kill any ongoing exit animations
     points.current.forEach((p) => {
@@ -628,7 +899,7 @@ export default function BlobCursorDither({
     if (!isExpanding.current) {
       fadeInBlobs();
     }
-  }, [fadeInBlobs]);
+  }, [fadeInBlobs, hashOverlayActive]);
 
   const handleLinkClick = useCallback((e) => {
     if (isExpanding.current) return;
@@ -646,7 +917,7 @@ export default function BlobCursorDither({
 
     setActiveMaskGroup("hash");
 
-    const hashContentNode = document.querySelector('.hash-page-content');
+  const hashContentNode = document.querySelector('.hash-page-content');
     if (hashContentNode) {
       hashContentNode.style.opacity = '1';
       hashContentNode.style.visibility = 'visible';
@@ -785,49 +1056,30 @@ export default function BlobCursorDither({
   // Initialize color transition tracker to the active blob color
   colorTransition.current = { ...rgb.current };
     
-    // Get viewport dimensions and calculate size needed to cover entire screen
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const viewportDiagonal = Math.sqrt(viewportWidth ** 2 + viewportHeight ** 2);
-    
-    // The blob has a radial gradient where the center is solid and edges fade out
-    // We need the SOLID CENTER (not blurred edges) to cover the viewport diagonal
-    // The solid part is roughly 40-50% of the blob radius due to gradient + blur
-    // So we need to make the blob ~2.5x larger than the viewport diagonal
-    // Reference the smallest blob cursor size instead of the largest
-    const smallestBlob = sizes.length > 0 ? Math.min(...sizes) : 200;
-    const baseSize = smallestBlob;
-    const baseRadius = baseSize * 0.5; // Radius is half the size
-    
-  // Account for blur radius only if blur is enabled
-  const blurRadius = BLUR_ENABLED ? blurPx * 1.5 : 0;
-    
-    // Calculate how much of the blob is actually solid (before gradient falloff)
-    // The radial gradient goes from solid at center to transparent at edge
-    // We need the solid portion to cover the viewport diagonal
-    const solidCoreFactor = 0.3; // Only ~30% of radius is fully solid before fade
-    
-    // Target: solid core radius = viewportDiagonal
-    // If solidCore = blobRadius * solidCoreFactor
-    // Then blobRadius = viewportDiagonal / solidCoreFactor
-    const targetRadius = viewportDiagonal / solidCoreFactor;
-    const targetSize = targetRadius * 2; // Convert radius to diameter
-    
-    // Add extra for blur that happens after
-    const targetSizeWithBlur = targetSize + (blurRadius * 4);
-    
-    const finalMultiplier = targetSizeWithBlur / baseSize;
+    const coveragePointer = (() => {
+      const latestPointer = getLatestViewportPointer();
+      if (latestPointer) return latestPointer;
+      const leadPoint = points.current[0];
+      if (leadPoint) {
+        return scaledToViewport({ x: leadPoint.x, y: leadPoint.y });
+      }
+      return null;
+    })();
+
+    const finalMultiplier = computeFullscreenMultiplier(coveragePointer);
     
     // Pause the dither background rendering during expansion for better performance
     if (onExpansionStart) {
       onExpansionStart();
     }
     
-    // Phase 1: Expand blob to fill screen (1.5 second - longer for smoother animation)
+    // Phase 1: Expand blob to fill screen (1 second pulse)
+    const isHashNavigation = Boolean(targetHash);
+
     gsap.to(expansionMultiplier, {
       current: finalMultiplier,
-      duration: 2.0,
-      ease: "power1.inOut",
+      duration: 1.5,
+      ease: "expo.out",
       onUpdate: () => {
         currentSizeMultiplier.current = expansionMultiplier.current;
       },
@@ -861,6 +1113,77 @@ export default function BlobCursorDither({
         });
         
         // Phase 3: Hide blobs and shrink back to original size
+        const finalizeTransition = () => {
+          maskSizeTweenRef.current?.kill();
+          maskSizeTweenRef.current = null;
+          maskSizeMultiplierRef.current = 1;
+          rgb.current = { ...hashColorRef.current };
+
+          resolutionTween.current?.kill();
+          resolutionTween.current = gsap.to(resolutionMultiplier, {
+            current: 1,
+            duration: 0.6,
+            ease: "power2.inOut"
+          });
+
+          if (onExpansionComplete) {
+            onExpansionComplete();
+          }
+
+          executePendingNavigation(targetUrl);
+
+          isExpanding.current = false; // Allow cursor tracking to resume
+
+          if (pendingFadeOut.current) {
+            pendingFadeOut.current = false;
+            if (temporarilyReenabled.current) {
+              disableBlob();
+              temporarilyReenabled.current = false;
+            }
+            fadeOutBlobs();
+            setTimeout(() => {
+              executePendingNavigation(targetUrl);
+              requestAnimationFrame(resetBlobZIndex);
+            }, 1000);
+            return;
+          }
+
+          setTimeout(() => {
+            if (temporarilyReenabled.current) {
+              disableBlob();
+              temporarilyReenabled.current = false;
+              executePendingNavigation(targetUrl);
+              requestAnimationFrame(resetBlobZIndex);
+              return;
+            }
+
+            if (isHashNavigation) {
+              // Keep the blob disabled and preserve the expanded scale for hash destinations.
+              disableBlob();
+              temporarilyReenabled.current = false;
+              executePendingNavigation();
+              requestAnimationFrame(resetBlobZIndex);
+              return;
+            }
+
+            // Restore blob layer z-index before fading back in so the canvas
+            // returns to its normal stacking order while it fades into view.
+            resetBlobZIndex();
+
+            gsap.to(blobOpacity, {
+              current: 1,
+              duration: 0.8,
+              ease: "power2.inOut",
+              onComplete: () => {
+                // Navigate to the target URL
+                executePendingNavigation();
+                // Reset blob layer depth once the fade completes
+                requestAnimationFrame(resetBlobZIndex);
+              }
+            });
+          }, 50); // Small delay to let cursor tracking resume
+        };
+
         gsap.to(blobOpacity, {
           current: 0,
           duration: 0.25,
@@ -879,103 +1202,65 @@ export default function BlobCursorDither({
                 }
               }
             }
+            if (isHashNavigation) {
+              // Preserve the expansion scale for hash pages rather than shrinking back.
+              currentSizeMultiplier.current = expansionMultiplier.current;
+              finalizeTransition();
+              return;
+            }
+
             // Shrink back to original size (while still hidden)
-            gsap.to(expansionMultiplier, {
-              current: 1,
-              duration: 0.4,
-              ease: "power2.out",
-              onUpdate: () => {
-                currentSizeMultiplier.current = expansionMultiplier.current;
-              },
+            maskSizeMultiplierRef.current = 1;
+            maskSizeTweenRef.current?.kill();
+            const shrinkTimeline = gsap.timeline({
               onComplete: () => {
-                rgb.current = { ...hashColorRef.current };
-
-                // Ease resolution back to normal while the blob is hidden
-                resolutionTween.current?.kill();
-                resolutionTween.current = gsap.to(resolutionMultiplier, {
-                  current: 1,
-                  duration: 0.6,
-                  ease: "power2.inOut"
-                });
-
-                if (onExpansionComplete) {
-                  onExpansionComplete();
-                }
-
-                executePendingNavigation(targetUrl);
-
-                // Phase 4: Resume cursor tracking and ensure rendering before fade-in
-                isExpanding.current = false; // Allow cursor tracking to resume
-                
-                // Check if cursor left during expansion
-                if (pendingFadeOut.current) {
-                  pendingFadeOut.current = false;
-                  if (temporarilyReenabled.current) {
-                    disableBlob();
-                    temporarilyReenabled.current = false;
-                  }
-                  fadeOutBlobs();
-                  setTimeout(() => {
-                    executePendingNavigation(targetUrl);
-                    requestAnimationFrame(resetBlobZIndex);
-                  }, 1000);
-                  return;
-                }
-                
-                // Wait a brief moment for cursor position to update, then fade blobs back in
-                setTimeout(() => {
-                  if (temporarilyReenabled.current) {
-                    disableBlob();
-                    temporarilyReenabled.current = false;
-                    executePendingNavigation(targetUrl);
-                    requestAnimationFrame(resetBlobZIndex);
-                    return;
-                  }
-
-                  // Restore blob layer z-index before fading back in so the canvas
-                  // returns to its normal stacking order while it fades into view.
-                  resetBlobZIndex();
-
-                  gsap.to(blobOpacity, {
-                    current: 1,
-                    duration: 0.8,
-                    ease: "power2.inOut",
-                    onComplete: () => {
-                      // Navigate to the target URL
-                      executePendingNavigation();
-                      // Reset blob layer depth once the fade completes
-                      requestAnimationFrame(resetBlobZIndex);
-                    }
-                  });
-                }, 50); // Small delay to let cursor tracking resume
+                maskSizeTweenRef.current = null;
+                finalizeTransition();
               }
             });
+            maskSizeTweenRef.current = shrinkTimeline;
+            shrinkTimeline.to(maskSizeMultiplierRef, {
+              current: 0.01,
+              duration: 0.9,
+              ease: "expo.out"
+            }, 0);
+            shrinkTimeline.to(expansionMultiplier, {
+              current: 1,
+              duration: 0.6,
+              ease: "expo.out",
+              onUpdate: () => {
+                currentSizeMultiplier.current = expansionMultiplier.current;
+              }
+            }, 0);
           }
         });
       }
     });
-  }, [sizes, onExpansionComplete, onExpansionStart, blurPx, zIndex, fadeOutBlobs, disableBlob, setMaskActive, forEachMaskTarget, normalizeHashValue, setActiveMaskGroup, resetBlobZIndex]);
+  }, [sizes, onExpansionComplete, onExpansionStart, blurPx, zIndex, fadeOutBlobs, disableBlob, setMaskActive, forEachMaskTarget, normalizeHashValue, setActiveMaskGroup, resetBlobZIndex, computeFullscreenMultiplier, getLatestViewportPointer, scaledToViewport]);
 
   // Handle clicking on the logo to return to home (remove hash) with a mirrored transition
   const handleLogoClick = useCallback((e) => {
     if (isExpanding.current) return;
 
-    // Only intercept when on a hash page
     const currentHash = window.location.hash;
     if (!currentHash || currentHash.length <= 1) return;
 
-  e.preventDefault();
+    e.preventDefault();
 
-  const { origin, pathname, search } = window.location;
-  const baseUrl = `${origin}${pathname}${search}`;
-  pendingNavigationRef.current = baseUrl;
+    const { origin, pathname, search } = window.location;
+    const baseUrl = `${origin}${pathname}${search}`;
+    pendingNavigationRef.current = baseUrl;
 
-    const wasBlobDisabled = isBlobDisabled.current;
+    if (onReturnStart) {
+      onReturnStart();
+    }
+
     const activateMaskForTransition = isMaskMode && maskActivation === "transition";
+    const wasBlobDisabled = isBlobDisabled.current;
 
     if (wasBlobDisabled) {
       isBlobDisabled.current = false;
-      temporarilyReenabled.current = true;
+      temporarilyReenabled.current = false;
       gsap.killTweensOf(blobOpacity);
       blobOpacity.current = 1;
       resolutionTween.current?.kill();
@@ -992,19 +1277,70 @@ export default function BlobCursorDither({
       fastFrameStreakRef.current = 0;
     } else {
       temporarilyReenabled.current = false;
+      if (blobOpacity.current < 1) {
+        blobOpacity.current = 1;
+      }
     }
 
-    isExpanding.current = true;
+    returnFollowActiveRef.current = true;
 
-    if (onReturnStart) {
-      onReturnStart();
+    const DPR = DPRRef.current;
+    const padding = CANVAS_PADDING;
+    const logoNode = e.currentTarget;
+    const logoRect = logoNode instanceof HTMLElement ? logoNode.getBoundingClientRect() : null;
+
+    let fallbackX = (window.innerWidth * 0.5 + padding) * DPR;
+    let fallbackY = (window.innerHeight * 0.5 + padding) * DPR;
+    if (logoRect && logoRect.width > 0 && logoRect.height > 0) {
+      const logoCenterX = logoRect.left + logoRect.width / 2;
+      const logoCenterY = logoRect.top + logoRect.height / 2;
+      fallbackX = (logoCenterX + padding) * DPR;
+      fallbackY = (logoCenterY + padding) * DPR;
+    }
+    logoFallbackPositionRef.current = { x: fallbackX, y: fallbackY };
+
+    const pointerInside = pointerInsideViewportRef.current;
+    const initialX = pointerInside ? latestPointerRef.current.x : fallbackX;
+    const initialY = pointerInside ? latestPointerRef.current.y : fallbackY;
+    setBlobTargetPosition(initialX, initialY, { immediate: true });
+
+    magnetState.current.active = false;
+    magnetState.current.type = null;
+    isCursorFrozen.current = false;
+    rgb.current = { ...hashColorRef.current };
+
+    if (wrapRef.current) {
+      wrapRef.current.style.zIndex = String(maskZIndex);
     }
 
+    const hashContentNode = document.querySelector('.hash-page-content');
+    if (hashContentNode) {
+      hashContentNode.style.pointerEvents = 'none';
+      hashContentNode.style.visibility = 'visible';
+      hashContentNode.style.opacity = '1';
+      gsap.killTweensOf(hashContentNode);
+    }
+
+    const hashBackgroundNode = document.querySelector('.hash-page-background');
+    if (hashBackgroundNode) {
+      gsap.killTweensOf(hashBackgroundNode);
+      hashBackgroundNode.style.visibility = 'visible';
+      hashBackgroundNode.style.opacity = '1';
+    }
+
+    document.querySelectorAll('[data-floating-links="true"]').forEach(node => {
+      node.style.visibility = 'visible';
+      node.style.opacity = '1';
+    });
+
+    setActiveMaskGroup("hash");
+    revealHomeLayerDuringReturn();
+    maskSizeTweenRef.current?.kill();
+    maskSizeTweenRef.current = null;
+    maskSizeMultiplierRef.current = 1;
     if (activateMaskForTransition) {
-      setActiveMaskGroup("home");
       setMaskActive(true);
       const targets = forEachMaskTarget(targetEl => {
-        // Start mask visible so it can be "cleared" as we go back
         targetEl.style.opacity = "1";
         targetEl.style.visibility = "visible";
         targetEl.style.clipPath = "circle(0px at 50% 50%)";
@@ -1015,10 +1351,6 @@ export default function BlobCursorDither({
       }
     }
 
-  // Ensure the blob uses the hash color while the exit mask reveals home content
-  rgb.current = { ...hashColorRef.current };
-
-    // Begin degrading resolution before the visual expansion fully kicks in
     resolutionTween.current?.kill();
     resolutionTween.current = gsap.to(resolutionMultiplier, {
       current: 6,
@@ -1026,193 +1358,151 @@ export default function BlobCursorDither({
       ease: "power2.out"
     });
 
-    // Freeze blob position - stop tracking cursor
-    const frozenPositions = points.current.map(p => ({ x: p.x, y: p.y }));
-    points.current.forEach((p, i) => {
-      gsap.killTweensOf(p);
-      p.x = frozenPositions[i].x;
-      p.y = frozenPositions[i].y;
-    });
-    if (frozenPositions.length > 0) {
-      latestPointerRef.current.x = frozenPositions[0].x;
-      latestPointerRef.current.y = frozenPositions[0].y;
-    }
-    isCursorFrozen.current = true;
-    magnetState.current.active = false;
-    magnetState.current.type = null;
+    isExpanding.current = true;
 
-    // Raise blob to transition layer beneath mask
-    if (wrapRef.current) {
-      wrapRef.current.style.zIndex = String(maskZIndex);
-    }
-
-    // Ease hash layers out so the masked home copy can crossfade underneath
-    const hashContentNode = document.querySelector('.hash-page-content');
-    if (hashContentNode) {
-      hashContentNode.style.pointerEvents = 'none';
-      hashContentNode.style.visibility = 'visible';
-      hashContentNode.style.opacity = '1';
-      gsap.killTweensOf(hashContentNode);
-    }
-    const hashBackgroundNode = document.querySelector('.hash-page-background');
-    if (hashBackgroundNode) {
-      gsap.killTweensOf(hashBackgroundNode);
-      hashBackgroundNode.style.visibility = 'visible';
-      hashBackgroundNode.style.opacity = '1';
-    }
-
-    // Expansion sizing same as link flow
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const viewportDiagonal = Math.sqrt(viewportWidth ** 2 + viewportHeight ** 2);
-    const smallestBlob = sizes.length > 0 ? Math.min(...sizes) : 200;
-    const baseSize = smallestBlob;
-    const baseRadius = baseSize * 0.5;
-    const blurRadius = BLUR_ENABLED ? blurPx * 1.5 : 0;
-    const solidCoreFactor = 0.3;
-    const targetRadius = viewportDiagonal / solidCoreFactor;
-    const targetSize = targetRadius * 2;
-    const targetSizeWithBlur = targetSize + (blurRadius * 4);
-    const finalMultiplier = targetSizeWithBlur / baseSize;
-
-    gsap.to(expansionMultiplier, {
-      current: finalMultiplier,
-      duration: 2.0,
-      ease: "power1.inOut",
-      onUpdate: () => {
-        currentSizeMultiplier.current = expansionMultiplier.current;
-      },
-      onComplete: () => {
-        document.body.style.backgroundColor = '';
-
-        gsap.killTweensOf(blobOpacity);
-        blobOpacity.current = 0;
-
-        if (hashContentNode) {
-          gsap.killTweensOf(hashContentNode);
-          hashContentNode.style.pointerEvents = 'none';
-          hashContentNode.style.opacity = '0';
-          hashContentNode.style.visibility = 'hidden';
+    const coveragePointer = (() => {
+      if (pointerInsideViewportRef.current) {
+        const latestPointer = getLatestViewportPointer();
+        if (latestPointer) {
+          return latestPointer;
         }
-        if (hashBackgroundNode) {
-          gsap.killTweensOf(hashBackgroundNode);
-          hashBackgroundNode.style.opacity = '0';
-          hashBackgroundNode.style.visibility = 'hidden';
-        }
-
-        document.querySelectorAll('.side-links--diff').forEach(nav => {
-          nav.style.display = 'none';
-        });
-
-        if (activateMaskForTransition) {
-          setMaskActive(false);
-          const targets = forEachMaskTarget(targetEl => {
-            targetEl.style.clipPath = "none";
-            targetEl.style.webkitClipPath = "none";
-            targetEl.style.opacity = "1";
-            targetEl.style.visibility = "visible";
-          });
-          if (targets.length) {
-            clipPathCacheRef.current = "none";
-          }
-        }
-
-        expansionMultiplier.current = 1;
-        currentSizeMultiplier.current = 1;
-
-        rgb.current = { ...baseColorRef.current };
-
-        resolutionTween.current?.kill();
-        resolutionTween.current = null;
-        resolutionMultiplier.current = 1;
-
-        isExpanding.current = false;
-        isCursorFrozen.current = false;
-
-        const { x: resumeX, y: resumeY } = latestPointerRef.current;
-        if (Number.isFinite(resumeX) && Number.isFinite(resumeY)) {
-          for (let i = 0; i < trailCount; i++) {
-            if (quickX.current[i]) quickX.current[i](resumeX);
-            if (quickY.current[i]) quickY.current[i](resumeY);
-          }
-        }
-
-        setTimeout(() => {
-          if (temporarilyReenabled.current) {
-            disableBlob();
-            temporarilyReenabled.current = false;
-
-            document.querySelectorAll('#site-logo, #site-logo-solid').forEach(logo => {
-              logo.style.display = '';
-            });
-            document.querySelectorAll('.side-links:not([data-floating-links])').forEach(nav => {
-              if (nav.closest('.home-mask-content')) {
-                return;
-              }
-              nav.style.display = '';
-            });
-
-            resetBlobZIndex();
-
-            if (onReturnComplete) onReturnComplete();
-
-            executePendingNavigation(baseUrl);
-
-            setMaskActive(false);
-            const targets = forEachMaskTarget(targetEl => {
-              targetEl.style.clipPath = "none";
-              targetEl.style.webkitClipPath = "none";
-              targetEl.style.opacity = "0";
-              targetEl.style.visibility = "hidden";
-            });
-            if (targets.length) {
-              clipPathCacheRef.current = "none";
-            }
-
-            return;
-          }
-
-          resetBlobZIndex();
-
-          gsap.to(blobOpacity, {
-            current: 1,
-            duration: 0.8,
-            ease: "power2.inOut",
-            onComplete: () => {
-              document.querySelectorAll('#site-logo, #site-logo-solid').forEach(logo => {
-                logo.style.display = '';
-              });
-              document.querySelectorAll('.side-links:not([data-floating-links])').forEach(nav => {
-                if (nav.closest('.home-mask-content')) {
-                  return;
-                }
-                nav.style.display = '';
-              });
-
-              resetBlobZIndex();
-
-              if (onReturnComplete) onReturnComplete();
-
-              executePendingNavigation();
-
-              resetBlobZIndex();
-
-              setMaskActive(false);
-              const targets = forEachMaskTarget(targetEl => {
-                targetEl.style.clipPath = "none";
-                targetEl.style.webkitClipPath = "none";
-                targetEl.style.opacity = "0";
-                targetEl.style.visibility = "hidden";
-              });
-              if (targets.length) {
-                clipPathCacheRef.current = "none";
-              }
-            }
-          });
-        }, 50);
       }
+      const fallbackViewport = scaledToViewport(logoFallbackPositionRef.current);
+      if (fallbackViewport) {
+        return fallbackViewport;
+      }
+      return getLatestViewportPointer();
+    })();
+
+    const finalMultiplier = computeFullscreenMultiplier(coveragePointer);
+
+    const finalizeTransition = () => {
+  returnFollowActiveRef.current = false;
+      pendingFadeOut.current = false;
+      maskSizeTweenRef.current?.kill();
+      maskSizeTweenRef.current = null;
+      maskSizeMultiplierRef.current = 1;
+
+      document.body.style.backgroundColor = '';
+
+      if (hashContentNode) {
+        hashContentNode.style.pointerEvents = 'none';
+        hashContentNode.style.opacity = '0';
+        hashContentNode.style.visibility = 'hidden';
+      }
+      if (hashBackgroundNode) {
+        hashBackgroundNode.style.opacity = '0';
+        hashBackgroundNode.style.visibility = 'hidden';
+      }
+
+      document.querySelectorAll('[data-floating-links="true"]').forEach(node => node.remove());
+      document.querySelectorAll('.side-links--diff').forEach(nav => {
+        nav.style.display = 'none';
+      });
+
+      resolutionTween.current?.kill();
+      resolutionTween.current = null;
+      autoResolutionTween.current?.kill();
+      autoResolutionTween.current = null;
+      blurScaleTween.current?.kill();
+      blurScaleTween.current = null;
+
+      resolutionMultiplier.current = 1;
+      autoResolutionMultiplier.current = 1;
+      blurScaleRef.current = 1;
+      slowFrameDebtRef.current = 0;
+      fastFrameStreakRef.current = 0;
+
+  rgb.current = { ...baseColorRef.current };
+  expansionMultiplier.current = 0.01;
+  currentSizeMultiplier.current = 0.01;
+
+      setMaskActive(false);
+      const targets = forEachMaskTarget(targetEl => {
+        targetEl.style.clipPath = "none";
+        targetEl.style.webkitClipPath = "none";
+        targetEl.style.opacity = "0";
+        targetEl.style.visibility = "hidden";
+      });
+      if (targets.length) {
+        clipPathCacheRef.current = "none";
+      }
+
+      restoreHomeContent({ keepVisibleOverrides: true });
+
+      isExpanding.current = false;
+      isCursorFrozen.current = false;
+      temporarilyReenabled.current = false;
+
+      if (wrapRef.current) {
+        wrapRef.current.style.zIndex = String(homeZIndex);
+      }
+      resetBlobZIndex();
+
+      if (onReturnComplete) {
+        onReturnComplete();
+      }
+
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(() => restoreHomeContent());
+      } else {
+        setTimeout(() => restoreHomeContent(), 0);
+      }
+
+      disableBlob({ autoReactivateOnPointerMove: true });
+      executePendingNavigation();
+      requestAnimationFrame(resetBlobZIndex);
+    };
+
+    const beginShrink = () => {
+      const pointerInsideNow = pointerInsideViewportRef.current;
+      const { x: fallbackTargetX, y: fallbackTargetY } = logoFallbackPositionRef.current;
+      if (!pointerInsideNow && Number.isFinite(fallbackTargetX) && Number.isFinite(fallbackTargetY)) {
+        setBlobTargetPosition(fallbackTargetX, fallbackTargetY, { immediate: false });
+      }
+
+      resolutionTween.current?.kill();
+      resolutionTween.current = gsap.to(resolutionMultiplier, {
+        current: 1,
+        duration: 0.6,
+        ease: "power2.inOut"
+      });
+
+      maskSizeMultiplierRef.current = 1;
+      maskSizeTweenRef.current?.kill();
+      const shrinkTimeline = gsap.timeline({
+        onComplete: () => {
+          maskSizeTweenRef.current = null;
+          finalizeTransition();
+        }
+      });
+      maskSizeTweenRef.current = shrinkTimeline;
+      shrinkTimeline.to(maskSizeMultiplierRef, {
+        current: 0.01,
+        duration: 0.9,
+        ease: "expo.out"
+      }, 0);
+      shrinkTimeline.to(expansionMultiplier, {
+        current: 0.01,
+        duration: 0.6,
+        ease: "expo.out",
+        onUpdate: () => {
+          currentSizeMultiplier.current = expansionMultiplier.current;
+        }
+      }, 0);
+    };
+
+    gsap.killTweensOf(blobOpacity);
+    blobOpacity.current = 1;
+
+    expansionMultiplier.current = finalMultiplier;
+    currentSizeMultiplier.current = finalMultiplier;
+
+    gsap.delayedCall(0.1, () => {
+      document.body.style.backgroundColor = '';
+      beginShrink();
     });
-  }, [sizes, blurPx, zIndex, disableBlob, isMaskMode, maskActivation, onReturnStart, onReturnComplete, setMaskActive, forEachMaskTarget, setActiveMaskGroup, resetBlobZIndex]);
+  }, [sizes, blurPx, maskZIndex, homeZIndex, isMaskMode, maskActivation, onReturnStart, onReturnComplete, setActiveMaskGroup, setMaskActive, forEachMaskTarget, setBlobTargetPosition, resetBlobZIndex, restoreHomeContent, executePendingNavigation, computeFullscreenMultiplier, revealHomeLayerDuringReturn, getLatestViewportPointer, scaledToViewport]);
 
   useEffect(() => {
     resize();
@@ -1254,9 +1544,11 @@ export default function BlobCursorDither({
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("touchstart", onMove, { passive: true });
     window.addEventListener("touchmove", onMove, { passive: true });
-    window.addEventListener("mouseleave", onLeave);
-    window.addEventListener("mouseenter", onEnter);
-    document.documentElement.addEventListener("mouseleave", onLeave);
+    if (!hashOverlayActive) {
+      window.addEventListener("mouseleave", onLeave);
+      window.addEventListener("mouseenter", onEnter);
+      document.documentElement.addEventListener("mouseleave", onLeave);
+    }
 
     // set up quickTo tweens once
     points.current.forEach((p, i) => {
@@ -1524,14 +1816,34 @@ export default function BlobCursorDither({
 
       if (shouldUpdateCircleClip) {
         const lead = points.current[0];
-        const sizeReference = (() => {
+        const defaultMaskReference = (() => {
           if (!Array.isArray(sizes) || sizes.length === 0) return 0;
           if (sizes.length === 1) return sizes[0];
           const sorted = [...sizes].sort((a, b) => a - b);
           return sorted[1] ?? sorted[0];
         })();
+        const smallestSize = Array.isArray(sizes) && sizes.length ? Math.min(...sizes) : 0;
+        let sizeReference = defaultMaskReference;
+
+        // During the expansion swell keep the mask tied to the smallest blob so it never exposes content.
+        if (isExpanding.current && smallestSize > 0) {
+          sizeReference = smallestSize;
+        }
+        if (sizeReference <= 0 && smallestSize > 0) {
+          sizeReference = smallestSize;
+        }
+
+        const leadSize = Array.isArray(sizes) && sizes.length ? sizes[0] : sizeReference;
         const hasPosition = lead && lead.x > -9000 && lead.y > -9000;
-        const radius = hasPosition ? Math.max(0, (sizeReference * currentSizeMultiplier.current) / 2) : 0;
+        const maskScale = maskSizeMultiplierRef.current;
+        let radius = hasPosition ? Math.max(0, (sizeReference * currentSizeMultiplier.current * maskScale) / 2) : 0;
+
+        if (radius > 0 && leadSize > 0) {
+          const maxMaskRadius = (leadSize * currentSizeMultiplier.current * maskScale) / 2;
+          const clampFactor = isExpanding.current ? 0.96 : 1;
+          const safeRadius = Math.max(0, maxMaskRadius * clampFactor);
+          radius = Math.min(radius, safeRadius || radius);
+        }
 
         if (primaryMaskTarget && radius > 0 && canvasRect) {
           const centerX = lead.x * cssScale + canvasRect.left;
@@ -1672,8 +1984,20 @@ export default function BlobCursorDither({
     // Track mouse movement to conditionally render
     const originalOnMove = onMove;
     const wrappedOnMove = (e) => {
+      const DPR = DPRRef.current;
+      const padding = CANVAS_PADDING;
+      const pointerX = "clientX" in e ? e.clientX : e.touches?.[0]?.clientX || 0;
+      const pointerY = "clientY" in e ? e.clientY : e.touches?.[0]?.clientY || 0;
+      const scaledX = (pointerX + padding) * DPR;
+      const scaledY = (pointerY + padding) * DPR;
+
       if (isBlobDisabled.current) {
-        return;
+        if (autoReactivateOnMoveRef.current) {
+          reactivateBlob({ scaledX, scaledY });
+        }
+        if (isBlobDisabled.current) {
+          return;
+        }
       }
 
       lastMoveTime = performance.now();
@@ -1709,8 +2033,10 @@ export default function BlobCursorDither({
     window.addEventListener("pointermove", wrappedOnMove, { passive: true });
   window.addEventListener("touchstart", wrappedOnMove, { passive: true });
     window.addEventListener("touchmove", wrappedOnMove, { passive: true });
-    window.addEventListener("mouseleave", wrappedOnLeave);
-    document.documentElement.addEventListener("mouseleave", wrappedOnLeave);
+    if (!hashOverlayActive) {
+      window.addEventListener("mouseleave", wrappedOnLeave);
+      document.documentElement.addEventListener("mouseleave", wrappedOnLeave);
+    }
 
     loop(performance.now());
     return () => {
@@ -1742,12 +2068,39 @@ export default function BlobCursorDither({
       resolutionTween.current?.kill();
       autoResolutionTween.current?.kill();
       blurScaleTween.current?.kill();
+      maskSizeTweenRef.current?.kill();
+      maskSizeTweenRef.current = null;
     };
       }, [
-    resize, onMove, onLeave, handleLinkClick, trailCount, sizes, opacities,
-      blurPx, threshold, colorNum, pixelSize, whiteCutoff, thresholdShift, fadeInBlobs,
-    fastDuration, slowDuration, fastEase, slowEase, disableBlob, isMaskMode, clipTargetRef, maskActivation, forEachMaskTarget
-  ]);
+        resize,
+        onMove,
+        onLeave,
+        onEnter,
+        handleLinkClick,
+        handleLogoClick,
+        trailCount,
+        sizes,
+        opacities,
+        blurPx,
+        threshold,
+        colorNum,
+        pixelSize,
+        whiteCutoff,
+        thresholdShift,
+        fadeInBlobs,
+        reactivateBlob,
+        fastDuration,
+        slowDuration,
+        fastEase,
+        slowEase,
+        disableBlob,
+        isMaskMode,
+        clipTargetRef,
+        maskActivation,
+        forEachMaskTarget,
+        setBlobTargetPosition,
+        hashOverlayActive
+      ]);
 
   return (
     <div
