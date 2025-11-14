@@ -428,6 +428,21 @@ export default function App() {
         style={{ width: logoSize }}
         ariaLabel="The Yuniverse"
       />
+
+      <nav className="side-links side-links--diff" aria-label="Section links">
+        <ul className="side-links__list">
+          <li><a className="side-links__a" href="#about">About</a></li>
+          <li><a className="side-links__a" href="#linkone">LinkOne</a></li>
+          <li><a className="side-links__a" href="#linktwo">LinkTwo</a></li>
+        </ul>
+      </nav>
+
+      <h3
+        className={`small-message small-message--base ${isHashPage || isHashTransitioning ? "small-message--base-hidden" : ""}`}
+        aria-hidden={isHashPage || isHashTransitioning}
+      >
+        first to use discord link:「yannblu」
+      </h3>
     </div>
   );
 }
