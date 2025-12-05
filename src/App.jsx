@@ -15,7 +15,7 @@ function LogoSvg({ id, className, style, ariaLabel, ariaHidden }) {
       style={style}
       aria-label={ariaLabel}
       aria-hidden={ariaHidden}
-      // Logo Designer: ??
+      // Logo Design ヨギ
     >
       <path d="M627.2 145.6H457.4c-2.4 0-4.4-2-4.4-4.4v-37.3c0-1.6.9-3.1 2.3-3.9s3.2-.7 4.5.2l16.4 10.8 35.3-23.3c.7-.5 1.6-.7 2.4-.7h23l-25.4-16.7c-1.2-.8-2-2.2-2-3.7V4.4c0-2.4 2-4.4 4.4-4.4h37.7c1.2 0 2.3.5 3.1 1.3s1.3 2 1.3 3.1v37.3c0 2.4-2 4.4-4.4 4.4s-4.4-2-4.4-4.4V8.8h-28.9v55.3l35.8 23.5c1.6 1.1 2.4 3.1 1.8 5s-2.3 3.2-4.2 3.2h-36.4L478.7 120c-1.5 1-3.4 1-4.9 0l-12-7.9v24.7h150.7L587.1 120c-2-1.3-2.6-4.1-1.3-6.1s4.1-2.6 6.1-1.3l37.7 24.9c1.6 1.1 2.4 3.1 1.8 5-.5 1.8-2.2 3.1-4.2 3.1m-452.9 0h-37.7c-2.4 0-4.4-2-4.4-4.4s2-4.4 4.4-4.4h23L96.4 95.1c-1.2-.8-2-2.2-2-3.7s.7-2.9 2-3.7L216.2 8.8h-21.7l-131 86.3c-1.5 1-3.4 1-4.9 0L2 57.8c-1.2-.8-2-2.2-2-3.7s.7-2.9 2-3.7L20.9 38c2-1.3 4.8-.8 6.1 1.3 1.3 2 .8 4.8-1.3 6.1l-13.3 8.7 48.6 32L190.7.7c.7-.5 1.6-.7 2.4-.7h37.7c2 0 3.7 1.3 4.2 3.2.6 1.9-.2 3.9-1.8 5L106.8 91.4l69.9 46c1.6 1.1 2.4 3.1 1.8 5-.5 1.9-2.3 3.2-4.2 3.2" />
       <path d="M212 145.6c-.8 0-1.7-.2-2.4-.7l-75.5-49.7c-1.2-.8-2-2.2-2-3.7s.7-2.9 2-3.7l56.6-37.3c2-1.3 4.8-.8 6.1 1.3 1.3 2 .8 4.8-1.3 6.1l-51 33.6 67.5 44.4 14.5-9.5V54.1c0-2.4 2-4.4 4.4-4.4s4.4 2 4.4 4.4v74.6c0 1.5-.7 2.9-2 3.7l-18.9 12.4c-.7.5-1.5.8-2.4.8" />
@@ -299,44 +299,6 @@ export default function App() {
         </div>
       )}
 
-      <div className="home-mask-content" ref={homeMaskContentRef}>
-        <nav className="side-links side-links--solid home-mask-target" aria-label="Section links">
-          <ul className="side-links__list">
-            <li><a className="side-links__a" href="#about">About</a></li>
-            <li><a className="side-links__a" href="#linkone">LinkOne</a></li>
-            <li><a className="side-links__a" href="#linktwo">LinkTwo</a></li>
-          </ul>
-        </nav>
-
-        <h3 className="small-message home-mask-target">first to use discord link:?yannblu?</h3>
-      </div>
-
-      {/* Hash page layers: background on a lower plane, content masked above */}
-      <div
-        className={`hash-page-background ${isHashPage ? "hash-page-background--visible" : ""}`}
-        ref={hashPageBackgroundRef}
-        aria-hidden="true"
-      />
-
-      <div
-        className={`hash-page-content ${isHashPage ? "hash-page-content--visible" : ""}`}
-        ref={hashPageContentRef}
-      >
-        <LogoSvg
-          className="logo logo-diff logo--hash logo--interactive"
-          style={{ width: logoSize }}
-          ariaHidden
-        />
-        <div className="mask-preview" aria-hidden={!ditherReady}>
-          <div className="mask-preview__inner">
-            <p>
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam id dolor at augue porta faucibus.
-              Suspendisse potenti. Fusce euismod erat vel tempor ultrices.
-            </p>
-          </div>
-        </div>
-      </div>
-
       {ditherReady && (
         <BlobCursorDither
           trailCount={isMobile ? 4 : 5}
@@ -428,21 +390,6 @@ export default function App() {
         style={{ width: logoSize }}
         ariaLabel="The Yuniverse"
       />
-
-      <nav className="side-links side-links--diff" aria-label="Section links">
-        <ul className="side-links__list">
-          <li><a className="side-links__a" href="#about">About</a></li>
-          <li><a className="side-links__a" href="#linkone">LinkOne</a></li>
-          <li><a className="side-links__a" href="#linktwo">LinkTwo</a></li>
-        </ul>
-      </nav>
-
-      <h3
-        className={`small-message small-message--base ${isHashPage || isHashTransitioning ? "small-message--base-hidden" : ""}`}
-        aria-hidden={isHashPage || isHashTransitioning}
-      >
-        first to use discord link:「yannblu」
-      </h3>
     </div>
   );
 }
