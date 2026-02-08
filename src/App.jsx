@@ -3,6 +3,7 @@ import gsap from "gsap";
 import Dither from "./Dither";
 import BlobCursorDither from "./BlobCursorDither";
 import Privacy from "./privacy";
+import Terms from "./terms";
 import "./App.css";
 
 function LogoSvg({ id, className, style, ariaLabel, ariaHidden }) {
@@ -291,9 +292,12 @@ export default function App() {
     };
   }, []);
 
-  // Route to privacy page
+  // Route to privacy and terms pages
   if (currentPath === "/remind.yu/privacy" || currentPath === "/remind.yu/privacy/") {
     return <Privacy />;
+  }
+  if (currentPath === "/remind.yu/terms" || currentPath === "/remind.yu/terms/") {
+    return <Terms />;
   }
 
   return (
@@ -307,6 +311,10 @@ export default function App() {
         © 2026 Yuniverse Australia. All rights reserved.
         <a className="legal__anchor" href="/remind.yu/privacy">
           Privacy Policy
+        </a>
+        <span style={{ margin: '0 0.7em' }}>|</span>
+        <a className="legal__anchor" href="/remind.yu/terms">
+          Terms of Use
         </a>
       </h3>
 
