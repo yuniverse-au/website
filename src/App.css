@@ -1,0 +1,408 @@
+@import url('./css/satoshi.css');
+html, body, #root { height: 100%; margin: 0; overflow: hidden; }
+body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
+
+.app { position: relative; width: 100%; height: 100%; }
+
+/* Background layer for Dither */
+.layer { 
+  position: absolute !important; 
+  inset: 0; 
+  z-index: 0;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+.dither-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* ===========================
+   Hash page content wrapper
+   =========================== */
+
+.hash-page-background {
+  position: fixed;
+  inset: 0;
+  z-index: 5; /* Below blob + masked content so the blob stays visible */
+  background: #000000;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: none;
+}
+
+.app--hash:not(.app--hash-transition) .hash-page-background {
+  z-index: 1;
+}
+
+.hash-page-background--visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.hash-page-content {
+  position: fixed;
+  inset: 0;
+  z-index: 40; /* Ensure masked content renders above the blob canvas */
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: none;
+  mix-blend-mode: difference;
+  color: var(--hash-blob-color);
+}
+
+.app--hash:not(.app--hash-transition) .hash-page-content {
+  z-index: 4;
+}
+
+.hash-page-content--visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.home-mask-content {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: none;
+  isolation: isolate; /* Keep masked layers isolated above the blob canvas */
+}
+
+.home-mask-content .home-mask-target {
+  z-index: 1; /* Ensure masked home elements render above the masking canvas */
+}
+
+.home-mask-content .logo.home-mask-target {
+  position: absolute;
+}
+
+.home-mask-content .logo--solid.home-mask-target {
+  mix-blend-mode: normal;
+  filter: none;
+  color: #000;
+  fill: #000;
+  opacity: 1;
+}
+
+.home-mask-content .side-links.home-mask-target {
+  position: fixed;
+}
+
+.home-mask-content .side-links--solid.home-mask-target {
+  mix-blend-mode: normal;
+  color: #000;
+  opacity: 1;
+}
+
+.home-mask-content .side-links--solid.home-mask-target .side-links__a {
+  color: #000;
+}
+
+.app--hash .hash-page-content {
+  pointer-events: auto;
+}
+
+.app--hash #site-logo,
+.app--hash #site-logo-solid {
+  display: none;
+}
+
+.app--hash .hash-page-content .logo--hash {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.mask-preview {
+  position: absolute;
+  left: 14vw;
+  top: var(--side-links-top);
+  right: auto;
+  bottom: calc(7vh + 8vh + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: clamp(0.75rem, 1.5vw, 1.5rem) clamp(0.75rem, 1.5vw, 1.5rem) 0 clamp(2.5rem, 6vw, 5.5rem);
+  z-index: 2; /* Above background, below floating links */
+  pointer-events: none;
+  mix-blend-mode: difference;
+}
+
+.mask-preview__inner {
+  max-width: min(62ch, 70vw);
+  text-align: left;
+  color: inherit;
+  font-family: 'Satoshi-Variable', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-weight: 500;
+  font-size: clamp(1.1rem, 0.9rem + 1vw, 2rem);
+  line-height: 1.6;
+  letter-spacing: 0.015em;
+  padding-left: 2rem;
+}
+
+.logo {
+  position: absolute;
+  top: 7vh;
+  left: 7vw;
+  height: auto;
+  max-width: 100%;
+  pointer-events: none; /* Default: not clickable on home page */
+  user-select: none;
+  cursor: default;
+}
+
+.logo--clickable {
+  pointer-events: auto; /* Enable clicks only on hash pages */
+  cursor: pointer;
+}
+
+
+@keyframes hashTransitionSmoother {
+  from {
+    color: inherit;
+    fill: inherit;
+  }
+  to {
+    color: inherit;
+    fill: inherit;
+  }
+}
+
+.logo-diff {
+  filter: grayscale(1) contrast(2000%) brightness(200%);
+  mix-blend-mode: difference;
+  color: var(--hash-blob-color);
+  fill: var(--hash-blob-color);
+  z-index: 12;
+  will-change: filter;
+}
+
+.app--hash:not(.app--hash-transition) .logo-diff {
+  z-index: 4;
+}
+
+.app--hash-transition .logo--hash,
+.app--hash .logo--hash {
+  filter: none;
+  color: var(--hash-blob-color);
+  fill: var(--hash-blob-color);
+}
+
+.logo--solid {
+  fill: #000;
+  mix-blend-mode:overlay;
+  filter: none;
+  z-index: 13;
+}
+
+.preload-reveal {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 9999;
+  pointer-events: none;
+  isolation: isolate;
+
+  animation:
+    colorShift 3s ease-in-out 1s forwards,
+    fadeOut    4s ease-in        7s forwards;
+}
+
+.preload-ghost {
+  opacity: 1;
+  pointer-events: none;
+}
+
+.preload-logo-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes colorShift {
+  from { background: #000; }
+  to   { background: #cbcbcb; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preload-reveal { animation: none; background: transparent; }
+}
+
+body {
+  font-family: 'Satoshi-Variable', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-weight: 400;
+}
+
+h1, h2, h3 {
+  font-family: 'Satoshi-Variable';
+  font-weight: 700;
+}
+
+.legal,
+.small-message {
+  max-width: min(92vw, 65ch);
+  pointer-events: none;
+  user-select: none;
+  line-height: 1.25;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.legal {
+  color: #000;
+  opacity: 50%;
+  font-weight: 400;
+  font-size: clamp(0.7rem, 0.35rem + 1vw, 0.9rem);
+  position: fixed;
+  right: 7vw;
+  bottom: calc(7vh + env(safe-area-inset-bottom));
+}
+
+.small-message {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(90vw, 60ch);
+  text-align: center;
+  color: #000;
+  font-weight: 400;
+  font-size: clamp(1rem, 0.5rem + 1.2vw, 1.2rem);
+}
+
+.small-message--base {
+  mix-blend-mode: normal;
+  opacity: 1;
+}
+
+.small-message--base-hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.title {
+  position: absolute;
+  top: 10vh;
+  left: 10vw;
+  margin: 0;
+  color: #fff;
+  mix-blend-mode: difference;
+  filter: grayscale(1) contrast(2000%) brightness(200%);
+  will-change: filter;
+  font-size: clamp(3rem, 10vw, 7rem);
+  font-weight: 600;
+  line-height: .95;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ===========================
+   Vertical side links (left)
+   =========================== */
+
+:root {
+  /* JS sets this to the logo's bottom edge (in px) */
+  --side-links-top: 40vh;
+  --hash-blob-color: #ffffff;
+}
+
+.app--hash {
+  --hash-blob-color: #cbcbcb;
+}
+
+.app--hash-transition {
+  --hash-blob-color: #cbcbcb;
+}
+
+/* shared container */
+.side-links {
+  position: fixed;
+  left: 14vw; /* Match logo left padding - doubled for more space */
+  /* Start right under the logo, dynamic via JS */
+  top: var(--side-links-top);
+  /* Reserve space down to bottom text - add extra padding */
+  bottom: calc(7vh + 8vh + env(safe-area-inset-bottom)); /* Extra 8vh to stay above bottom text */
+  display: flex;
+  flex-direction: column;
+  /* Layering mirrors the logo setup */
+  pointer-events: none; /* allow clicks only on anchors */
+}
+
+.side-links--diff {
+  z-index: 12; /* Match logo-diff layer so mix-blend-mode difference interacts with blob */
+  mix-blend-mode: difference;
+  filter: grayscale(1) contrast(2000%) brightness(200%);
+  color: var(--hash-blob-color);
+}
+
+.app--hash:not(.app--hash-transition) .side-links--diff {
+  z-index: 4;
+}
+
+.side-links--solid {
+  z-index: 13; /* Match logo--solid layer for consistent overlay */
+  mix-blend-mode: overlay;
+  color: #000;
+}
+
+/* list lays items vertically and spreads them evenly */
+.side-links__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly; /* evenly distributed spacing */
+  align-items: flex-start;
+  gap: 0; /* spacing handled by space-evenly */
+}
+
+/* each anchor is rotated 270deg (-90deg) and clickable */
+.side-links__a {
+  pointer-events: auto;
+  display: inline-block;
+  transform: rotate(-90deg); /* 270deg */
+  transform-origin: left top;
+  white-space: nowrap;
+  text-decoration: none;
+  font-family: 'Satoshi-Variable', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  /* Scale with viewport height: 600px = 0.7rem, 2160px (4K) = 1.2rem */
+  font-size: clamp(0.7rem, 0.5rem + 0.65vh, 1.2rem);
+  line-height: 1;
+  padding: 0.35rem 0.5rem; /* click target */
+  user-select: none;
+  color: inherit; /* Inherit color from parent to prevent browser defaults */
+}
+
+/* Remove browser default link colors for all states */
+.side-links__a:link,
+.side-links__a:visited,
+.side-links__a:active {
+  color: inherit;
+}
+
+/* keep things nice on very short viewports */
+@media (max-height: 520px) {
+  .side-links__a {
+    font-size: 0.65rem;
+    padding: 0.25rem 0.4rem;
+  }
+}
