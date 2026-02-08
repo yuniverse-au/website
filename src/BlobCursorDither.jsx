@@ -90,7 +90,9 @@ export default function BlobCursorDither({
   homeClipRefs = [],
   homeMaskSelector = ".home-mask-target",
   maskActivation = "always",
-  hashOverlayActive = false
+  hashOverlayActive = false,
+  logoMagnetism = false,
+  logoMagnetismSelector = ".privacy-logo"
 }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
@@ -549,6 +551,14 @@ export default function BlobCursorDither({
   // Track velocity for movement-based optimizations
   const isHighVelocityRef = useRef(false);
 
+  // Touch state tracking for mobile fade behavior
+  const isTouchingRef = useRef(false);
+  const touchFadeTimeoutRef = useRef(null);
+  const velocityRef = useRef({ x: 0, y: 0 });
+  const lastTouchPosRef = useRef({ x: 0, y: 0 });
+  const lastTouchTimeRef = useRef(0);
+  const momentumAnimationRef = useRef(null);
+
   const resize = useCallback(() => {
     // Cap DPR more aggressively for performance
     const DPR = Math.min(1.5, Math.max(1, window.devicePixelRatio || 1));
@@ -646,6 +656,61 @@ export default function BlobCursorDither({
     });
   }, []);
 
+  const scheduleTouchFade = useCallback(() => {
+    // Clear any existing fade timeout
+    if (touchFadeTimeoutRef.current) {
+      clearTimeout(touchFadeTimeoutRef.current);
+    }
+    
+    // Schedule fade out after a delay
+    touchFadeTimeoutRef.current = setTimeout(() => {
+      if (!isTouchingRef.current && !isExpanding.current) {
+        fadeOutBlobs();
+      }
+    }, 150); // Fade after 150ms of no touch
+  }, [fadeOutBlobs]);
+
+  const applyMomentum = useCallback(() => {
+    if (momentumAnimationRef.current) {
+      momentumAnimationRef.current.kill();
+    }
+
+    const velocity = velocityRef.current;
+    const currentPos = { ...latestPointerRef.current };
+    
+    // Calculate momentum distance based on velocity (reduce by friction)
+    const momentumDuration = 0.6;
+    const friction = 0.85; // How much velocity to maintain
+    const momentumX = velocity.x * friction * 30; // Scale factor for visual effect
+    const momentumY = velocity.y * friction * 30;
+    
+    const targetX = currentPos.x + momentumX;
+    const targetY = currentPos.y + momentumY;
+    
+    // Animate to momentum target with easing
+    momentumAnimationRef.current = gsap.to(latestPointerRef.current, {
+      x: targetX,
+      y: targetY,
+      duration: momentumDuration,
+      ease: "power2.out",
+      onUpdate: () => {
+        if (!isTouchingRef.current) {
+          // Update blob position during momentum
+          const lead = points.current[0];
+          if (lead) {
+            for (let i = 0; i < trailCount; i++) {
+              quickX.current[i]?.(latestPointerRef.current.x);
+              quickY.current[i]?.(latestPointerRef.current.y);
+            }
+          }
+        }
+      },
+      onComplete: () => {
+        momentumAnimationRef.current = null;
+      }
+    });
+  }, [trailCount]);
+
   const reactivateBlob = useCallback((pointerInfo = null) => {
     if (!isBlobDisabled.current) {
       autoReactivateOnMoveRef.current = false;
@@ -710,10 +775,41 @@ export default function BlobCursorDither({
     const wasOutsideViewport = !pointerInsideViewportRef.current;
     pointerInsideViewportRef.current = true;
 
+    // Detect if this is a touch event
+    const isTouchEvent = e.type.startsWith('touch');
+    
+    // Update touch state
+    if (isTouchEvent) {
+      isTouchingRef.current = true;
+      // Clear any pending fade timeout since user is touching
+      if (touchFadeTimeoutRef.current) {
+        clearTimeout(touchFadeTimeoutRef.current);
+        touchFadeTimeoutRef.current = null;
+      }
+      // Cancel momentum animation when user touches again
+      if (momentumAnimationRef.current) {
+        momentumAnimationRef.current.kill();
+        momentumAnimationRef.current = null;
+      }
+    }
+
     const DPR = DPRRef.current;
     const padding = CANVAS_PADDING; // Must match padding in resize()
     let x = "clientX" in e ? e.clientX : e.touches?.[0]?.clientX || 0;
     let y = "clientY" in e ? e.clientY : e.touches?.[0]?.clientY || 0;
+
+    // Track velocity for momentum
+    const currentTime = performance.now();
+    const timeDelta = currentTime - lastTouchTimeRef.current;
+    if (isTouchEvent && timeDelta > 0) {
+      const dx = x - lastTouchPosRef.current.x;
+      const dy = y - lastTouchPosRef.current.y;
+      velocityRef.current.x = dx / timeDelta * 16; // Normalize to ~60fps
+      velocityRef.current.y = dy / timeDelta * 16;
+    }
+    lastTouchPosRef.current.x = x;
+    lastTouchPosRef.current.y = y;
+    lastTouchTimeRef.current = currentTime;
 
     // Keep track of the latest pointer position so we can snap to it after transitions
     const pointerScaledX = (x + padding) * DPR;
@@ -752,7 +848,48 @@ export default function BlobCursorDither({
     let activeTargetType = null;
 
     if (!isExpanding.current && !isHighVelocity) {
-      if (isOnSubpage) {
+      // Check for privacy page logo magnetism first
+      if (logoMagnetism) {
+        const privacyLogo = document.querySelector(logoMagnetismSelector);
+        if (privacyLogo) {
+          const rect = privacyLogo.getBoundingClientRect();
+          if (rect && rect.width > 0 && rect.height > 0) {
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            const dx = x - centerX;
+            const dy = y - centerY;
+            const distFromCenter = Math.sqrt(dx * dx + dy * dy);
+            
+            // Define the logo radius (half the diagonal)
+            const logoRadius = Math.sqrt(rect.width * rect.width + rect.height * rect.height) / 2;
+            
+            // Only apply magnetism if within the logo bounds
+            const withinLogo = x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+            
+            if (withinLogo && distFromCenter < logoRadius) {
+              // Calculate magnetism strength: stronger at center (1.0), weaker at edges (near 0)
+              // Use a quadratic falloff for smooth transition
+              const normalizedDist = distFromCenter / logoRadius;
+              const magnetStrengthFactor = Math.pow(1 - normalizedDist, 2); // quadratic falloff
+              
+              activeTarget = { 
+                x: centerX, 
+                y: centerY, 
+                dist: distFromCenter, 
+                radius: logoRadius,
+                magnetStrength: magnetStrengthFactor
+              };
+              activeTargetType = "privacyLogo";
+              magnetStatus.active = true;
+              magnetStatus.type = activeTargetType;
+            }
+          }
+        }
+      }
+      
+      // Only check other targets if privacy logo magnetism didn't activate
+      if (!magnetStatus.active) {
+        if (isOnSubpage) {
         for (const logo of logoElements.current) {
           if (!logo) continue;
           const rect = logo.getBoundingClientRect();
@@ -807,6 +944,7 @@ export default function BlobCursorDither({
           magnetStatus.type = activeTargetType;
         }
       }
+      }
     }
 
     if (magnetStatus.active && activeTarget) {
@@ -814,7 +952,11 @@ export default function BlobCursorDither({
       const distanceRatio = Math.min(1, magnetRadius > 0 ? activeTarget.dist / magnetRadius : 1);
 
       let pullStrength = 0;
-      if (activeTargetType === "logo") {
+      if (activeTargetType === "privacyLogo") {
+        // Use the pre-calculated magnetStrength from the activeTarget
+        // This gives us the quadratic falloff (strong at center, weak at edges)
+        pullStrength = activeTarget.magnetStrength * 0.95; // Scale to max 0.95
+      } else if (activeTargetType === "logo") {
         const proximity = Math.max(0, 1 - distanceRatio);
         const eased = Math.pow(proximity, 0.85);
         pullStrength = Math.min(0.95, eased * 1.05 + 0.12);
@@ -882,6 +1024,23 @@ export default function BlobCursorDither({
 
     fadeOutBlobs();
   }, [fadeOutBlobs, setBlobTargetPosition]);
+
+  const onTouchEnd = useCallback((e) => {
+    isTouchingRef.current = false;
+    
+    // Apply momentum if there's sufficient velocity
+    const velocityMagnitude = Math.sqrt(
+      velocityRef.current.x * velocityRef.current.x +
+      velocityRef.current.y * velocityRef.current.y
+    );
+    
+    if (velocityMagnitude > 1) {
+      applyMomentum();
+    }
+    
+    // Schedule fade out
+    scheduleTouchFade();
+  }, [applyMomentum, scheduleTouchFade]);
 
   const onEnter = useCallback(() => {
     pointerInsideViewportRef.current = true;
@@ -2029,10 +2188,14 @@ export default function BlobCursorDither({
   window.removeEventListener("touchmove", onMove);
     window.removeEventListener("mouseleave", onLeave);
     document.documentElement.removeEventListener("mouseleave", onLeave);
+    window.removeEventListener("touchend", onTouchEnd);
+    window.removeEventListener("touchcancel", onTouchEnd);
     
     window.addEventListener("pointermove", wrappedOnMove, { passive: true });
   window.addEventListener("touchstart", wrappedOnMove, { passive: true });
     window.addEventListener("touchmove", wrappedOnMove, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", onTouchEnd, { passive: true });
     if (!hashOverlayActive) {
       window.addEventListener("mouseleave", wrappedOnLeave);
       document.documentElement.addEventListener("mouseleave", wrappedOnLeave);
@@ -2042,6 +2205,12 @@ export default function BlobCursorDither({
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(idleTimer);
+      if (touchFadeTimeoutRef.current) {
+        clearTimeout(touchFadeTimeoutRef.current);
+      }
+      if (momentumAnimationRef.current) {
+        momentumAnimationRef.current.kill();
+      }
       const targets = forEachMaskTarget(targetEl => {
         targetEl.style.clipPath = "";
         targetEl.style.webkitClipPath = "";
@@ -2062,6 +2231,8 @@ export default function BlobCursorDither({
       window.removeEventListener("pointermove", wrappedOnMove);
       window.removeEventListener("touchstart", wrappedOnMove);
       window.removeEventListener("touchmove", wrappedOnMove);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchcancel", onTouchEnd);
       window.removeEventListener("mouseleave", wrappedOnLeave);
       window.removeEventListener("mouseenter", onEnter);
       document.documentElement.removeEventListener("mouseleave", wrappedOnLeave);
@@ -2076,6 +2247,7 @@ export default function BlobCursorDither({
         onMove,
         onLeave,
         onEnter,
+        onTouchEnd,
         handleLinkClick,
         handleLogoClick,
         trailCount,

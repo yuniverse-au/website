@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import Dither from "./Dither";
 import BlobCursorDither from "./BlobCursorDither";
+import Privacy from "./privacy";
 import "./App.css";
 
 function LogoSvg({ id, className, style, ariaLabel, ariaHidden }) {
@@ -28,6 +29,15 @@ function LogoSvg({ id, className, style, ariaLabel, ariaHidden }) {
 }
 
 export default function App() {
+  const [currentPath, setCurrentPath] = useState(() => {
+    const redirectPath = sessionStorage.getItem('redirectPath');
+    if (redirectPath) {
+      sessionStorage.removeItem('redirectPath');
+      return redirectPath;
+    }
+    return window.location.pathname;
+  });
+
   const [isMobile, setIsMobile] = useState(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
   const [logoSize, setLogoSize] = useState(isMobile ? "70vw" : "40vw");
   const [ditherEnabled, setDitherEnabled] = useState(true);
@@ -49,6 +59,15 @@ export default function App() {
   const blobMaskZIndex = 30; // Ensure mask layers sit above the blob during transitions
   const homeBlobColor = "#000000";
   const hashBlobColor = "#cbcbcb";
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     if (window.location.hash) {
@@ -272,12 +291,24 @@ export default function App() {
     };
   }, []);
 
+  // Route to privacy page
+  if (currentPath === "/remind.yu/privacy" || currentPath === "/remind.yu/privacy/") {
+    return <Privacy />;
+  }
+
   return (
     <div className={`app ${isHashPage ? "app--hash" : ""} ${isHashTransitioning ? "app--hash-transition" : ""}`}>
       <div className="preload-reveal" aria-hidden="true">
         <div className="preload-ghost" />
-        <h3 className="legal">© 2025 Yuniverse Australia. All rights reserved.</h3>
+        <h3 className="legal">© 2026 Yuniverse Australia. All rights reserved.</h3>
       </div>
+
+      <h3 className="legal legal--link">
+        © 2026 Yuniverse Australia. All rights reserved.
+        <a className="legal__anchor" href="/remind.yu/privacy">
+          Privacy Policy
+        </a>
+      </h3>
 
       {ditherReady && (
         <div
@@ -390,6 +421,13 @@ export default function App() {
         style={{ width: logoSize }}
         ariaLabel="The Yuniverse"
       />
+      
+      <h3
+        className={`small-message small-message--base ${isHashPage || isHashTransitioning ? "small-message--base-hidden" : ""}`}
+        aria-hidden={isHashPage || isHashTransitioning}
+      >
+        revolves around you.
+      </h3>
     </div>
   );
 }
