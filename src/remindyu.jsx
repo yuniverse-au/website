@@ -73,7 +73,7 @@ export default function RemindYu() {
   }, []);
 
   useEffect(() => {
-    document.title = "remind.yu: never forget again.";
+    document.title = "remind.yu";
 
     window.scrollTo(0, 0);
 
