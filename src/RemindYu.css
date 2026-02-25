@@ -27,7 +27,7 @@
   position: absolute;
   top: 7vh;
   left: 7vw;
-  width: 40vw;
+  width: 20vw;
   max-width: 100%;
   z-index: 20;
   text-decoration: none;
@@ -89,17 +89,15 @@
   overflow: hidden;
   z-index: 1;
   pointer-events: none;
-  /* Soft fade at edges */
-  mask-image: radial-gradient(circle, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 100%);
-  -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 100%);
 }
 
 .remindyu-hero-text {
   position: relative;
   z-index: 5;
+  mix-blend-mode: difference;
   text-align: center;
   width: 100%;
-  padding: 0 7vw;
+  padding: 0 7vw clamp(1.5rem, 4vh, 3rem);
   box-sizing: border-box;
 }
 
@@ -149,15 +147,11 @@
    ============================================================ */
 
 .remindyu-scroll-cue {
-  position: absolute;
-  bottom: clamp(1.5rem, 4vh, 3rem);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 5;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.4em;
+  margin-top: 2.5rem;
   opacity: 0.25;
   pointer-events: none;
   user-select: none;
@@ -204,6 +198,9 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  position: relative;
+  z-index: 5;
+  mix-blend-mode: difference;
 }
 
 .remindyu-feature__number {
@@ -411,7 +408,7 @@
 
 @media (max-width: 768px) {
   .remindyu-logo-link {
-    width: 70vw;
+    width: 60vw;
   }
 
   /* Mobile dither: 65vw diameter, top half */

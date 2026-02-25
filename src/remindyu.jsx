@@ -8,17 +8,17 @@ const FEATURES = [
   {
     number: "01",
     name: "Nagging.",
-    desc: "Set a repeat interval on any reminder. If you haven't marked it done, remind.yu will keep notifying you at that interval — no snooze, no excuses. You decide when it stops.",
+    desc: "Set a repeat interval on any reminder. If you haven't marked it done, remind.yu will keep notifying you at that interval. No snooze, no excuses. You decide when it stops.",
   },
   {
     number: "02",
     name: "High Granularity.",
-    desc: "Your schedule isn't just clock times. Anchor reminders to meals — before, during or after — or set them by an exact time of day. Every reminder is as precise as your life actually is.",
+    desc: "Your schedule isn't just clock times. Anchor reminders to meals: before, during or after, or set them by an exact time of day. Every reminder is as precise as your life actually is.",
   },
   {
     number: "03",
     name: "Linked Reminders.",
-    desc: "Chain reminders into full routines. Finish one task and automatically trigger the next — like a 30-minute cooldown before your next reminder fires. Build sequences that match how you actually work.",
+    desc: "Chain reminders into full routines. Finish one task and automatically trigger the next, like a 30-minute cooldown before your next reminder fires. Build sequences that match how you actually work.",
   },
   {
     number: "04",
@@ -28,7 +28,7 @@ const FEATURES = [
   {
     number: "05",
     name: "Yours, Entirely.",
-    desc: "Assign your own icons and colour palettes to every reminder. Your dashboard, your visual language — making it faster to recognise what matters at a glance.",
+    desc: "Assign your own icons and colour palettes to every reminder. Your dashboard, your visual language, making it faster to recognise what matters at a glance.",
   },
   {
     number: "06",
@@ -73,7 +73,7 @@ export default function RemindYu() {
   }, []);
 
   useEffect(() => {
-    document.title = "remind.yu — never forget again.";
+    document.title = "remind.yu: never forget again.";
 
     window.scrollTo(0, 0);
 
@@ -110,8 +110,8 @@ export default function RemindYu() {
         }
         blurPx={scaledBlur}
         threshold={0.28}
-        color="#000000"
-        hashColor="#000000"
+        color="#cbcbcb"
+        hashColor="#cbcbcb"
         pixelSize={2}
         whiteCutoff={0.7}
         thresholdShift={-0.4}
@@ -122,7 +122,7 @@ export default function RemindYu() {
       {/* ── Hero ── */}
       <section className="remindyu-hero">
         {/* Logo — dual-layer treatment identical to home page */}
-        <a href="/" className="remindyu-logo-link" aria-label="The Yuniverse — home">
+        <a href="/" className="remindyu-logo-link" aria-label="The Yuniverse - home">
           <LogoSvg
             className="remindyu-logo-diff"
             ariaHidden
@@ -152,7 +152,7 @@ export default function RemindYu() {
             the reminder app that actually reminds you.
           </p>
           {/* Play Store badge placeholder */}
-          <div className="remindyu-store-badge" aria-label="Available on Google Play — coming soon">
+          <div className="remindyu-store-badge" aria-label="Available on Google Play - coming soon">
             <svg
               className="remindyu-store-badge__icon"
               viewBox="0 0 24 24"
@@ -161,14 +161,13 @@ export default function RemindYu() {
             >
               <path d="M3.18 23.76c.31.17.67.19 1 .07l12.55-7.25L13.9 13.7 3.18 23.76zM.54 2.03C.2 2.38 0 2.93 0 3.66v16.68c0 .73.2 1.28.54 1.63l.09.08 9.35-9.35v-.22L.63 1.95l-.09.08zM20.08 10.44l-2.64-1.53-2.93 2.93 2.93 2.93 2.66-1.54c.76-.44.76-1.35-.02-1.79zM3.18.24l13.26 7.67-2.54 2.54L3.18.24z"/>
             </svg>
-            Google Play — coming soon
+            Google Play - coming soon
           </div>
-        </div>
-
-        {/* Scroll cue */}
-        <div className="remindyu-scroll-cue" aria-hidden="true">
-          <div className="remindyu-scroll-cue__line" />
-          <span className="remindyu-scroll-cue__label">scroll</span>
+          {/* Scroll cue — inside hero-text so it sits below badge without overlapping */}
+          <div className="remindyu-scroll-cue" aria-hidden="true">
+            <div className="remindyu-scroll-cue__line" />
+            <span className="remindyu-scroll-cue__label">scroll</span>
+          </div>
         </div>
       </section>
 
@@ -213,7 +212,7 @@ export default function RemindYu() {
         </h2>
         <p className="remindyu-privacy-callout__body">
           We do not collect, store, or transmit any information about your
-          reminders. Your data lives on your device — and only your device.
+          reminders. Your data lives on your device. Only your device.
           remind.yu does not even request Internet permission.
         </p>
         <a className="remindyu-privacy-callout__link" href="/remind.yu/privacy">
