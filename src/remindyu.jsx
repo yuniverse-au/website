@@ -110,8 +110,8 @@ export default function RemindYu() {
         }
         blurPx={scaledBlur}
         threshold={0.28}
-        color="#cbcbcb"
-        hashColor="#cbcbcb"
+        color="#000000"
+        hashColor="#000000"
         pixelSize={2}
         whiteCutoff={0.7}
         thresholdShift={-0.4}
@@ -121,16 +121,9 @@ export default function RemindYu() {
 
       {/* ── Hero ── */}
       <section className="remindyu-hero">
-        {/* Logo — dual-layer treatment identical to home page */}
+        {/* Logo */}
         <a href="/" className="remindyu-logo-link" aria-label="The Yuniverse - home">
-          <LogoSvg
-            className="remindyu-logo-diff"
-            ariaHidden
-          />
-          <LogoSvg
-            className="remindyu-logo-solid"
-            ariaHidden
-          />
+          <LogoSvg className="remindyu-logo" ariaHidden />
         </a>
 
         {/* Circular dither animation */}
