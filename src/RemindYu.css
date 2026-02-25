@@ -1,0 +1,465 @@
+@import url('./css/humanoid.css');
+
+/* ============================================================
+   remind.yu landing page
+   ============================================================ */
+
+.remindyu-container {
+  min-height: 100vh;
+  height: auto;
+  width: 100%;
+  background-color: #000;
+  box-sizing: border-box;
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  color: #cbcbcb;
+  font-family: 'Satoshi-Variable', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* ============================================================
+   Logo — identical positioning to home page
+   ============================================================ */
+
+.remindyu-logo-link {
+  position: absolute;
+  top: 7vh;
+  left: 7vw;
+  width: 40vw;
+  max-width: 100%;
+  z-index: 20;
+  text-decoration: none;
+  display: block;
+}
+
+.remindyu-logo-diff {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: auto;
+  width: 100%;
+  pointer-events: none;
+  user-select: none;
+  filter: grayscale(1) contrast(2000%) brightness(200%);
+  mix-blend-mode: difference;
+  color: #fff;
+  fill: #fff;
+}
+
+.remindyu-logo-solid {
+  position: relative;
+  height: auto;
+  width: 100%;
+  pointer-events: none;
+  user-select: none;
+  fill: #000;
+  mix-blend-mode: overlay;
+  visibility: hidden; /* solid overlay is invisible on black — just a spacer for height */
+}
+
+/* ============================================================
+   Hero
+   ============================================================ */
+
+.remindyu-hero {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: clamp(3rem, 8vh, 6rem);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Circular dither animation */
+.remindyu-dither-circle {
+  position: absolute;
+  /* Desktop: centered, slightly above middle */
+  left: 50%;
+  top: 44%;
+  transform: translate(-50%, -50%);
+  width: clamp(260px, 38vmin, 520px);
+  height: clamp(260px, 38vmin, 520px);
+  border-radius: 50%;
+  overflow: hidden;
+  z-index: 1;
+  pointer-events: none;
+  /* Soft fade at edges */
+  mask-image: radial-gradient(circle, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 100%);
+  -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,1) 60%, rgba(0,0,0,0) 100%);
+}
+
+.remindyu-hero-text {
+  position: relative;
+  z-index: 5;
+  text-align: center;
+  width: 100%;
+  padding: 0 7vw;
+  box-sizing: border-box;
+}
+
+.remindyu-app-name {
+  font-family: 'Humanoid', 'Satoshi-Variable', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: normal;
+  font-size: clamp(3rem, 9vw, 8.5rem);
+  letter-spacing: -0.01em;
+  color: #fff;
+  margin: 0 0 0.35em 0;
+  line-height: 1;
+}
+
+.remindyu-tagline {
+  font-size: clamp(0.9rem, 1.5vw, 1.25rem);
+  font-weight: 400;
+  color: #cbcbcb;
+  letter-spacing: 0.04em;
+  margin: 0 0 2rem 0;
+  line-height: 1.5;
+}
+
+.remindyu-store-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 0.5rem;
+  padding: 0.65em 1.4em;
+  font-size: clamp(0.75rem, 1.2vw, 0.95rem);
+  font-weight: 600;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: default;
+  user-select: none;
+}
+
+.remindyu-store-badge__icon {
+  width: 1.1em;
+  height: 1.1em;
+  opacity: 0.4;
+}
+
+/* ============================================================
+   Scroll cue
+   ============================================================ */
+
+.remindyu-scroll-cue {
+  position: absolute;
+  bottom: clamp(1.5rem, 4vh, 3rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4em;
+  opacity: 0.25;
+  pointer-events: none;
+  user-select: none;
+}
+
+.remindyu-scroll-cue__line {
+  width: 1px;
+  height: clamp(2rem, 5vh, 4rem);
+  background: #fff;
+}
+
+.remindyu-scroll-cue__label {
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+/* ============================================================
+   Features
+   ============================================================ */
+
+.remindyu-features {
+  width: 100%;
+  padding: 0;
+}
+
+.remindyu-feature {
+  width: 100%;
+  box-sizing: border-box;
+  padding: clamp(3.5rem, 7vh, 6rem) 7vw;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  column-gap: clamp(2rem, 5vw, 5rem);
+  row-gap: 0;
+  align-items: start;
+}
+
+.remindyu-feature__meta {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.remindyu-feature__number {
+  font-size: clamp(4.5rem, 9vw, 8rem);
+  font-weight: 700;
+  line-height: 0.9;
+  color: #fff;
+  opacity: 0.08;
+  letter-spacing: -0.03em;
+  margin: 0 0 0.15em 0;
+  pointer-events: none;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.remindyu-feature__name {
+  font-size: clamp(1.6rem, 3.2vw, 3rem);
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  margin: 0 0 0.6em 0;
+}
+
+.remindyu-feature__desc {
+  font-size: clamp(0.9rem, 1.3vw, 1.05rem);
+  font-weight: 400;
+  color: #cbcbcb;
+  line-height: 1.75;
+  max-width: 48ch;
+  margin: 0;
+}
+
+.remindyu-feature__visual {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.remindyu-screenshot-placeholder {
+  width: 100%;
+  max-width: 280px;
+  aspect-ratio: 9 / 19.5;
+  background: #0d0d0d;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.5em;
+  color: rgba(255,255,255,0.12);
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  user-select: none;
+  pointer-events: none;
+}
+
+.remindyu-screenshot-placeholder__icon {
+  width: 1.8em;
+  height: 1.8em;
+  opacity: 0.15;
+}
+
+/* ============================================================
+   Privacy callout — inverted panel
+   ============================================================ */
+
+.remindyu-privacy-callout {
+  width: 100%;
+  box-sizing: border-box;
+  background: #cbcbcb;
+  color: #000;
+  padding: clamp(4rem, 9vh, 8rem) 7vw;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+.remindyu-privacy-callout__eyebrow {
+  font-size: clamp(0.65rem, 1vw, 0.8rem);
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(0,0,0,0.45);
+  margin: 0 0 1.2em 0;
+}
+
+.remindyu-privacy-callout__heading {
+  font-size: clamp(2rem, 5vw, 4.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  color: #000;
+  margin: 0 0 0.7em 0;
+  max-width: 18ch;
+}
+
+.remindyu-privacy-callout__body {
+  font-size: clamp(0.95rem, 1.4vw, 1.1rem);
+  font-weight: 400;
+  line-height: 1.75;
+  color: rgba(0,0,0,0.7);
+  max-width: 52ch;
+  margin: 0 0 2em 0;
+}
+
+.remindyu-privacy-callout__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: clamp(0.8rem, 1.1vw, 0.95rem);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #000;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(0,0,0,0.3);
+  padding-bottom: 0.1em;
+  transition: opacity 0.2s ease;
+}
+
+.remindyu-privacy-callout__link:hover {
+  opacity: 0.55;
+}
+
+.remindyu-privacy-callout__link::after {
+  content: '→';
+  font-style: normal;
+}
+
+/* ============================================================
+   Footer
+   ============================================================ */
+
+.remindyu-footer {
+  width: 100%;
+  box-sizing: border-box;
+  padding: clamp(1.5rem, 4vh, 2.5rem) 7vw;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.remindyu-footer__copy {
+  font-size: clamp(0.7rem, 0.35rem + 1vw, 0.9rem);
+  font-weight: 400;
+  color: rgba(255,255,255,0.35);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.remindyu-footer__links {
+  display: flex;
+  align-items: center;
+  gap: 1.2em;
+}
+
+.remindyu-footer__link {
+  font-size: clamp(0.7rem, 0.35rem + 1vw, 0.9rem);
+  font-weight: 400;
+  color: rgba(255,255,255,0.35);
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.remindyu-footer__link:hover {
+  color: rgba(255,255,255,0.7);
+}
+
+.remindyu-footer__sep {
+  color: rgba(255,255,255,0.15);
+}
+
+/* ============================================================
+   Responsive — tablet / mobile
+   ============================================================ */
+
+@media (max-width: 900px) {
+  .remindyu-feature {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+  }
+
+  .remindyu-feature__meta {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .remindyu-feature__visual {
+    grid-column: 1;
+    grid-row: 2;
+    justify-content: flex-start;
+    margin-top: 2rem;
+  }
+
+  .remindyu-screenshot-placeholder {
+    max-width: 200px;
+  }
+}
+
+@media (max-width: 768px) {
+  .remindyu-logo-link {
+    width: 70vw;
+  }
+
+  /* Mobile dither: 65vw diameter, top half */
+  .remindyu-dither-circle {
+    width: 65vw;
+    height: 65vw;
+    top: 32vh;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .remindyu-hero {
+    justify-content: flex-end;
+    padding-bottom: clamp(2.5rem, 6vh, 5rem);
+  }
+
+  .remindyu-feature {
+    padding: clamp(2.5rem, 6vh, 4rem) 7vw;
+  }
+
+  .remindyu-feature__desc {
+    max-width: 100%;
+  }
+
+  .remindyu-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .remindyu-app-name {
+    font-size: clamp(2.5rem, 14vw, 4rem);
+  }
+
+  .remindyu-dither-circle {
+    width: 70vw;
+    height: 70vw;
+  }
+
+  .remindyu-privacy-callout__heading {
+    max-width: 100%;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .remindyu-dither-circle {
+    display: none;
+  }
+}
