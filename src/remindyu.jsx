@@ -33,7 +33,7 @@ const FEATURES = [
   {
     number: "06",
     name: "Dashboard.",
-    desc: "A calendar view that shows all your upcoming, active and past reminders in one place. No hunting through lists — everything laid out clearly, always.",
+    desc: "A calendar view that shows all your upcoming, active and past reminders in one place. With everything laid out clearly, always.",
   },
 ];
 
@@ -206,14 +206,14 @@ export default function RemindYu() {
 
       {/* ── Privacy callout ── */}
       <section className="remindyu-privacy-callout">
-        <p className="remindyu-privacy-callout__eyebrow">Built different</p>
+        <p className="remindyu-privacy-callout__eyebrow">Revolves around you</p>
         <h2 className="remindyu-privacy-callout__heading">
           private by default.
         </h2>
         <p className="remindyu-privacy-callout__body">
-          We do not collect, store, or transmit any information about your
+          We don't collect, store, or transmit any information about your
           reminders. Your data lives on your device. Only your device.
-          remind.yu does not even request Internet permission.
+          remind.yu doesn't even request Internet permission.
         </p>
         <a className="remindyu-privacy-callout__link" href="/remind.yu/privacy">
           Read the Privacy Policy
