@@ -1,12 +1,11 @@
 
 import { useEffect, useState } from "react";
 import BlobCursorDither from "./BlobCursorDither";
-import LogoSvg from "./LogoSvg";
+import YuniverseLogoHeader from "./YuniverseLogoHeader";
 import "./Privacy.css";
 
 export default function Terms() {
   const [isMobile] = useState(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
-  const [logoSize] = useState(isMobile ? "70vw" : "40vw");
   const [blobScale, setBlobScale] = useState(1);
 
   useEffect(() => {
@@ -61,7 +60,7 @@ export default function Terms() {
         threshold={0.28}
         color="#000000"
         logoMagnetism={true}
-        logoMagnetismSelector=".privacy-logo"
+        logoMagnetismSelector=".yuniverse-logo-header"
         hashColor="#000000"
         pixelSize={2}
         whiteCutoff={0.7}
@@ -70,14 +69,7 @@ export default function Terms() {
         zIndex={1}
       />
 
-      <a href="/" className="privacy-logo-link">
-        <LogoSvg
-          id="privacy-logo"
-          className="privacy-logo"
-          style={{ width: logoSize }}
-          ariaLabel="The Yuniverse"
-        />
-      </a>
+      <YuniverseLogoHeader />
 
       <div className="privacy-content">
         <h1 className="privacy-title">Terms of Use - remind.yu (Android)</h1>

@@ -235,10 +235,10 @@ export default function BlobCursorDither({
 
   const applyCanvasBlend = useCallback(() => {
     if (!isMaskMode) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const wrap = wrapRef.current;
+    if (!wrap) return;
     const shouldBlend = hashOverlayActive && !maskActiveRef.current;
-    canvas.style.mixBlendMode = shouldBlend ? "difference" : "normal";
+    wrap.style.mixBlendMode = shouldBlend ? "difference" : "normal";
   }, [hashOverlayActive, isMaskMode]);
 
   const setMaskActive = useCallback((active) => {
@@ -2277,22 +2277,22 @@ export default function BlobCursorDither({
   return (
     <div
       ref={wrapRef}
-      style={{ 
-        position: "fixed", 
+      style={{
+        position: "fixed",
         inset: 0,
         width: "100%",
         height: "100%",
-        zIndex: homeZIndex, 
+        zIndex: homeZIndex,
         pointerEvents: "none",
-        overflow: "hidden" // Clip extended canvas at viewport edges
+        overflow: "hidden", // Clip extended canvas at viewport edges
+        mixBlendMode: isMaskMode ? "normal" : "difference"
       }}
       aria-hidden
     >
       <canvas
         ref={canvasRef}
         style={{
-          position: "absolute",
-          mixBlendMode: isMaskMode ? "normal" : "multiply"
+          position: "absolute"
         }}
       />
     </div>

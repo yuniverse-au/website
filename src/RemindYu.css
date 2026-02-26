@@ -19,30 +19,7 @@
   font-family: 'Satoshi-Variable', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* ============================================================
-   Logo — same single-layer approach as privacy/terms pages
-   ============================================================ */
-
-.remindyu-logo-link {
-  position: absolute;
-  top: 7vh;
-  left: 7vw;
-  width: 30vw;
-  max-width: 100%;
-  z-index: 20;
-  text-decoration: none;
-  display: block;
-  mix-blend-mode: difference;
-}
-
-.remindyu-logo {
-  height: auto;
-  width: 100%;
-  pointer-events: none;
-  user-select: none;
-  color: #fff;
-  fill: #fff;
-}
+/* Logo styles now live in YuniverseLogoHeader.css */
 
 /* ============================================================
    Hero
@@ -55,24 +32,24 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   padding-bottom: clamp(3rem, 8vh, 6rem);
   box-sizing: border-box;
   overflow: hidden;
 }
 
-/* Circular dither animation */
+/* Circular dither animation — z-index 55 keeps it above the cursor canvas (z-index 50)
+   so the difference-blend cursor does not invert the dither animation */
 .remindyu-dither-circle {
   position: absolute;
-  /* Desktop: centered, slightly above middle */
   left: 50%;
-  top: 44%;
+  top: 44vh;
   transform: translate(-50%, -50%);
   width: clamp(260px, 38vmin, 520px);
   height: clamp(260px, 38vmin, 520px);
   border-radius: 50%;
   overflow: hidden;
-  z-index: 1;
+  z-index: 55;
   pointer-events: none;
 }
 
@@ -81,6 +58,7 @@
   z-index: 5;
   text-align: center;
   width: 100%;
+  margin-top: calc(44vh + clamp(130px, 19vmin, 260px) + 3rem);
   padding: 0 7vw clamp(1.5rem, 4vh, 3rem);
   box-sizing: border-box;
 }
@@ -410,10 +388,6 @@
 }
 
 @media (max-width: 768px) {
-  .remindyu-logo-link {
-    width: 60vw;
-  }
-
   /* Mobile dither: 65vw diameter, top half */
   .remindyu-dither-circle {
     width: 65vw;
@@ -424,8 +398,11 @@
   }
 
   .remindyu-hero {
-    justify-content: flex-end;
     padding-bottom: clamp(2.5rem, 6vh, 5rem);
+  }
+
+  .remindyu-hero-text {
+    margin-top: calc(32vh + 32.5vw + 3rem);
   }
 
   .remindyu-feature {
@@ -450,6 +427,10 @@
   .remindyu-dither-circle {
     width: 70vw;
     height: 70vw;
+  }
+
+  .remindyu-hero-text {
+    margin-top: calc(32vh + 35vw + 3rem);
   }
 
   .remindyu-privacy-callout__heading {

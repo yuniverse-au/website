@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import BlobCursorDither from "./BlobCursorDither";
 import Dither from "./Dither";
-import LogoSvg from "./LogoSvg";
+import YuniverseLogoHeader from "./YuniverseLogoHeader";
 import "./RemindYu.css";
 
 const FEATURES = [
@@ -110,21 +110,19 @@ export default function RemindYu() {
         }
         blurPx={scaledBlur}
         threshold={0.28}
-        color="#000000"
-        hashColor="#000000"
+        color="#ffffff"
+        hashColor="#ffffff"
         pixelSize={2}
         whiteCutoff={0.7}
         thresholdShift={-0.4}
         mode="normal"
-        zIndex={2}
+        zIndex={50}
       />
 
       {/* ── Hero ── */}
       <section className="remindyu-hero">
         {/* Logo */}
-        <a href="/" className="remindyu-logo-link" aria-label="The Yuniverse - home">
-          <LogoSvg className="remindyu-logo" ariaHidden />
-        </a>
+        <YuniverseLogoHeader />
 
         {/* Circular dither animation */}
         <div className="remindyu-dither-circle" aria-hidden="true">

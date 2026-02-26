@@ -1,0 +1,26 @@
+.yuniverse-logo-header {
+  position: absolute;
+  top: 7vh;
+  left: 7vw;
+  width: 30vw;
+  max-width: 100%;
+  z-index: 20;
+  text-decoration: none;
+  display: block;
+  mix-blend-mode: difference;
+}
+
+.yuniverse-logo-header__svg {
+  height: auto;
+  width: 100%;
+  pointer-events: none;
+  user-select: none;
+  color: #fff;
+  fill: #fff;
+}
+
+@media (max-width: 768px) {
+  .yuniverse-logo-header {
+    width: 60vw;
+  }
+}
