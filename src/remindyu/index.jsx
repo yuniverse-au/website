@@ -1,19 +1,21 @@
 import { useEffect, useState } from "react";
-import BlobCursorDither from "./BlobCursorDither";
-import Dither from "./Dither";
-import YuniverseLogoHeader from "./YuniverseLogoHeader";
+import BlobCursorDither from "../BlobCursorDither";
+import Dither from "../Dither";
+import YuniverseLogoHeader from "../YuniverseLogoHeader";
+import SplitText from "./SplitText";
+import logoWhite from "./logo-black.svg";
 import "./RemindYu.css";
 
 const FEATURES = [
   {
     number: "01",
     name: "Nagging.",
-    desc: "Set a repeat interval on any reminder. If you haven't marked it done, remind.yu will keep notifying you at that interval. No snooze, no excuses. You decide when it stops.",
+    desc: "Set a repeat interval on any reminder. If you haven't marked it done, remind.yu will keep notifying you at that interval. It'll only stop when you actually mark it done.",
   },
   {
     number: "02",
     name: "High Granularity.",
-    desc: "Your schedule isn't just clock times. Anchor reminders to meals: before, during or after, or set them by an exact time of day. Every reminder is as precise as your life actually is.",
+    desc: "Your schedule isn't just clock times. Anchor reminders to meals: before, during or after, or set them by an exact time of day.",
   },
   {
     number: "03",
@@ -23,12 +25,12 @@ const FEATURES = [
   {
     number: "04",
     name: "Alarm or Notification.",
-    desc: "Choose per reminder: a hard alarm that demands attention, or a quiet notification that stays out of your way. The right interruption level for every moment.",
+    desc: "Choose per reminder: a hard alarm that demands attention, or a quiet notification that stays out of your way. The right interruption level for every reminder.",
   },
   {
     number: "05",
     name: "Yours, Entirely.",
-    desc: "Assign your own icons and colour palettes to every reminder. Your dashboard, your visual language, making it faster to recognise what matters at a glance.",
+    desc: "Assign your own icons and colour palettes to every reminder. Your dashboard, your visual language, making it faster to recognise what's next at a glance.",
   },
   {
     number: "06",
@@ -42,6 +44,53 @@ export default function RemindYu() {
     /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
   );
   const [blobScale, setBlobScale] = useState(1);
+  const [ditherWaveColor, setDitherWaveColor] = useState([-80, -80, -80]);
+  const [innerOpacity, setInnerOpacity] = useState(0);
+  const [heroFadeOpacity, setHeroFadeOpacity] = useState(0);
+  const [showAppName, setShowAppName] = useState(false);
+
+  useEffect(() => {
+    const totalMs  = 9300;
+    const riseMs   = 3000; // ease-in-out: -80 → 0.6
+    const revealMs = 3300; // when circle/text appear (300ms pre-reveal hold at peak)
+    const holdMs   = 1000; // hold at peak after reveal
+    const fallMs   = 5000; // ease-out: 0.6 → -0.1
+    const start = -80;
+    const peak  =  0.6;
+    const final = -0.1;
+    const t0 = performance.now();
+    let rafId;
+
+    const animate = (now) => {
+      const elapsed = Math.min(now - t0, totalMs);
+
+      let waveVal;
+      if (elapsed <= riseMs) {
+        // Ease-in-out cubic: -80 → 0.6
+        const t = elapsed / riseMs;
+        const eased = t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+        waveVal = start + (peak - start) * eased;
+      } else if (elapsed <= revealMs + holdMs) {
+        // Hold at peak (pre-reveal + post-reveal)
+        waveVal = peak;
+      } else {
+        // Ease-out quintic: 0.6 → -0.1
+        const t = (elapsed - revealMs - holdMs) / fallMs;
+        waveVal = peak + (final - peak) * (1 - Math.pow(1 - t, 5));
+      }
+      setDitherWaveColor([waveVal, waveVal, waveVal]);
+
+      // Circle, text, and hero elements reveal at revealMs
+      setInnerOpacity(elapsed >= revealMs ? 1 : 0);
+      setShowAppName(elapsed >= revealMs);
+      setHeroFadeOpacity(Math.min(1, Math.max(0, (elapsed - revealMs) / 1000)));
+
+      if (elapsed < totalMs) rafId = requestAnimationFrame(animate);
+    };
+
+    rafId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
 
   useEffect(() => {
     const updateScale = () => {
@@ -75,6 +124,10 @@ export default function RemindYu() {
   useEffect(() => {
     document.title = "remind.yu";
 
+    const favicon = document.querySelector("link[rel~='icon']");
+    const originalHref = favicon?.getAttribute("href");
+    if (favicon) favicon.href = "/images/remindyu-favicon.svg";
+
     window.scrollTo(0, 0);
 
     const root = document.getElementById("root");
@@ -87,6 +140,7 @@ export default function RemindYu() {
 
     return () => {
       document.title = "The Yuniverse.";
+      if (favicon && originalHref) favicon.href = originalHref;
       if (root) root.style.overflow = "";
       if (body) body.style.overflow = "";
       if (html) html.style.overflow = "";
@@ -110,8 +164,8 @@ export default function RemindYu() {
         }
         blurPx={scaledBlur}
         threshold={0.28}
-        color="#ffffff"
-        hashColor="#ffffff"
+        color="#cbcbcb"
+        hashColor="#cbcbcb"
         pixelSize={2}
         whiteCutoff={0.7}
         thresholdShift={-0.4}
@@ -122,28 +176,49 @@ export default function RemindYu() {
       {/* ── Hero ── */}
       <section className="remindyu-hero">
         {/* Logo */}
-        <YuniverseLogoHeader />
+        <div style={{ opacity: heroFadeOpacity }}>
+          <YuniverseLogoHeader />
+        </div>
 
         {/* Circular dither animation */}
         <div className="remindyu-dither-circle" aria-hidden="true">
           <Dither
-            waveColor={isMobile ? [0.3, 0.3, 0.3] : [0.2, 0.2, 0.2]}
+            waveColor={ditherWaveColor}
             colorNum={8}
             waveAmplitude={0.3}
             waveFrequency={0.8}
             waveSpeed={0.04}
             enableMouseInteraction={false}
           />
+          <div className="remindyu-dither-inner-circle">
+            <div className="remindyu-dither-inner-bg" style={{ opacity: innerOpacity }} />
+            <img src={logoWhite} alt="" className="remindyu-inner-logo" />
+          </div>
         </div>
 
         {/* App name + tagline */}
         <div className="remindyu-hero-text">
-          <h1 className="remindyu-app-name">remind.yu</h1>
-          <p className="remindyu-tagline">
+          {showAppName ? (
+            <SplitText
+              text="remind.yu"
+              className="remindyu-app-name"
+              tag="h1"
+              splitType="chars"
+              from={{ opacity: 0, y: 20 }}
+              to={{ opacity: 1, y: 0 }}
+              duration={1.25}
+              delay={100}
+              ease="power3.out"
+              textAlign="center"
+            />
+          ) : (
+            <h1 className="remindyu-app-name" style={{ visibility: "hidden" }}>remind.yu</h1>
+          )}
+          <p className="remindyu-tagline" style={{ opacity: heroFadeOpacity }}>
             the reminder app that actually reminds you.
           </p>
           {/* Play Store badge placeholder */}
-          <div className="remindyu-store-badge" aria-label="Available on Google Play - coming soon">
+          <div className="remindyu-store-badge" aria-label="Available on Google Play - coming soon" style={{ opacity: heroFadeOpacity }}>
             <svg
               className="remindyu-store-badge__icon"
               viewBox="0 0 24 24"
@@ -155,7 +230,7 @@ export default function RemindYu() {
             Google Play - coming soon
           </div>
           {/* Scroll cue — inside hero-text so it sits below badge without overlapping */}
-          <div className="remindyu-scroll-cue" aria-hidden="true">
+          <div className="remindyu-scroll-cue" aria-hidden="true" style={{ opacity: heroFadeOpacity }}>
             <div className="remindyu-scroll-cue__line" />
             <span className="remindyu-scroll-cue__label">scroll</span>
           </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import BlobCursorDither from "./BlobCursorDither";
-import YuniverseLogoHeader from "./YuniverseLogoHeader";
+import BlobCursorDither from "../BlobCursorDither";
+import YuniverseLogoHeader from "../YuniverseLogoHeader";
 import "./Privacy.css";
 
 export default function Privacy() {
@@ -35,24 +35,26 @@ export default function Privacy() {
   const scaledBlur = Math.round((isMobile ? 65 : 82) * blobScale);
 
   useEffect(() => {
-    // Set page title
     document.title = 'Privacy Policy - remind.yu';
-    
-    // Scroll to top when component mounts
+
+    const favicon = document.querySelector("link[rel~='icon']");
+    const originalHref = favicon?.getAttribute("href");
+    if (favicon) favicon.href = "/images/remindyu-favicon.svg";
+
     window.scrollTo(0, 0);
-    
+
     // Enable scrolling on the root and body
     const root = document.getElementById('root');
     const body = document.body;
     const html = document.documentElement;
-    
+
     if (root) root.style.overflow = 'visible';
     if (body) body.style.overflow = 'visible';
     if (html) html.style.overflow = 'visible';
-    
-    // Cleanup: restore overflow hidden when component unmounts
+
     return () => {
       document.title = 'The Yuniverse';
+      if (favicon && originalHref) favicon.href = originalHref;
       if (root) root.style.overflow = '';
       if (body) body.style.overflow = '';
       if (html) html.style.overflow = '';
@@ -89,7 +91,7 @@ export default function Privacy() {
             </div>
             <div className="privacy-permission-block" style={{marginBottom: '1.2em'}}>
               <div className="privacy-permission-title"><strong>Developer / publisher</strong></div>
-              <div className="privacy-permission-desc">Yuniverse Australia (“we”, “us”, “our”)</div>
+              <div className="privacy-permission-desc">Yuniverse Australia ("we", "us", "our")</div>
             </div>
             <div className="privacy-permission-block">
               <div className="privacy-permission-title"><strong>Contact</strong></div>
@@ -113,7 +115,7 @@ export default function Privacy() {
           <p>remind.yu does not automatically collect or transmit:</p>
           <ul>
             <li>Reminder content (titles, schedules, repeat rules, linked reminders, completion history)</li>
-            <li>App customisations (icons, labels, “nagging” settings, timing rules)</li>
+            <li>App customisations (icons, labels, "nagging" settings, timing rules)</li>
             <li>Personal identifiers (name, email, phone number)</li>
             <li>Device identifiers (including advertising ID)</li>
             <li>Location data</li>
@@ -127,7 +129,7 @@ export default function Privacy() {
         </div>
         <div className="privacy-section">
           <h2>Device-to-device transfer</h2>
-          <p>When you move to a new phone, remind.yu data may be transferred using Android or manufacturer-provided transfer methods (for example, Pixel’s device transfer). This transfer occurs through those first-party tools.</p>
+          <p>When you move to a new phone, remind.yu data may be transferred using Android or manufacturer-provided transfer methods (for example, Pixel's device transfer). This transfer occurs through those first-party tools.</p>
           <p>remind.yu does not receive, process, or store your transferred data.</p>
           <p><strong>Note:</strong> The transfer feature you use may be provided by Google or your device manufacturer and may be governed by their own privacy policies. remind.yu does not control those services.</p>
         </div>
@@ -136,7 +138,7 @@ export default function Privacy() {
           <p>remind.yu requests only the permissions needed to function:</p>
           <div className="privacy-permission-block" style={{marginBottom: '1.2em'}}>
             <div className="privacy-permission-title"><strong>Notifications</strong></div>
-            <div className="privacy-permission-desc">Used to show reminders and repeated notifications (“nagging”) so you do not miss them.</div>
+            <div className="privacy-permission-desc">Used to show reminders and repeated notifications ("nagging") so you do not miss them.</div>
           </div>
           <div className="privacy-permission-block">
             <div className="privacy-permission-title"><strong>Disable battery optimisation (optional)</strong></div>
@@ -171,17 +173,17 @@ export default function Privacy() {
         <div className="privacy-section">
           <h2>Deleting reminders and app data</h2>
           <p><strong>Delete individual reminders (stop future notifications)</strong><br/>You can remove any scheduled reminder at any time by deleting it from the reminder list in the app. This removes that reminder from your device and stops future notifications for it.</p>
-          <p><strong>Delete all remind.yu data (recommended for a full reset)</strong><br/>You can remove all reminders and settings by using Android’s built-in “Clear storage” / “Clear data” option for the app. This resets remind.yu as if it were freshly installed. Steps vary by device manufacturer and Android version.</p>
-          <p><strong>Uninstalling the app</strong><br/>Uninstalling remind.yu typically removes the app and its on-device app data. However, depending on your device settings, some information may be restored if you reinstall (for example, if your device backups/restore are enabled). Data restore can occur as part of Android’s backup/restore process when an app is installed.</p>
-          <p><strong>Archiving (if your device offers it)</strong><br/>Some Android devices/Play Store setups support “archiving” apps, which is different from uninstalling and may keep personal app data available for restoration. If you want everything removed, use Clear storage rather than archive.</p>
+          <p><strong>Delete all remind.yu data (recommended for a full reset)</strong><br/>You can remove all reminders and settings by using Android's built-in "Clear storage" / "Clear data" option for the app. This resets remind.yu as if it were freshly installed. Steps vary by device manufacturer and Android version.</p>
+          <p><strong>Uninstalling the app</strong><br/>Uninstalling remind.yu typically removes the app and its on-device app data. However, depending on your device settings, some information may be restored if you reinstall (for example, if your device backups/restore are enabled). Data restore can occur as part of Android's backup/restore process when an app is installed.</p>
+          <p><strong>Archiving (if your device offers it)</strong><br/>Some Android devices/Play Store setups support "archiving" apps, which is different from uninstalling and may keep personal app data available for restoration. If you want everything removed, use Clear storage rather than archive.</p>
         </div>
         <div className="privacy-section">
-          <h2>Children’s privacy</h2>
+          <h2>Children's privacy</h2>
           <p>remind.yu does not collect personal information from anyone, including children.</p>
         </div>
         <div className="privacy-section">
           <h2>Links to our website (yuniverse.au)</h2>
-          <p>The app includes links that open our website in your browser. When you visit our website, technical information (such as your IP address and request information) may be processed to deliver and protect the site. Our website is hosted and secured using Cloudflare services, which may process this information as part of providing content delivery and security. Cloudflare’s privacy practices are described in its privacy policy.</p>
+          <p>The app includes links that open our website in your browser. When you visit our website, technical information (such as your IP address and request information) may be processed to deliver and protect the site. Our website is hosted and secured using Cloudflare services, which may process this information as part of providing content delivery and security. Cloudflare's privacy practices are described in its privacy policy.</p>
         </div>
         <div className="privacy-section">
           <h2>Changes to this policy</h2>

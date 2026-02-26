@@ -1,8 +1,20 @@
+:root {
+  --logo-width: clamp(230px, 22vw, 380px);
+  --logo-height: calc(var(--logo-width) * 0.23);
+  --logo-clearance: calc(7vh + var(--logo-height) * 2);
+}
+
+@media (max-width: 768px) {
+  :root {
+    --logo-width: clamp(190px, 52vw, 340px);
+  }
+}
+
 .yuniverse-logo-header {
   position: absolute;
   top: 7vh;
   left: 7vw;
-  width: 30vw;
+  width: var(--logo-width);
   max-width: 100%;
   z-index: 20;
   text-decoration: none;
@@ -17,10 +29,4 @@
   user-select: none;
   color: #fff;
   fill: #fff;
-}
-
-@media (max-width: 768px) {
-  .yuniverse-logo-header {
-    width: 60vw;
-  }
 }

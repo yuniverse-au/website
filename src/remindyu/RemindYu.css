@@ -1,4 +1,4 @@
-@import url('./css/humanoid.css');
+@import url('../css/humanoid.css');
 
 /* ============================================================
    remind.yu landing page
@@ -40,10 +40,42 @@
 
 /* Circular dither animation — z-index 55 keeps it above the cursor canvas (z-index 50)
    so the difference-blend cursor does not invert the dither animation */
+.remindyu-dither-inner-circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 70%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  z-index: 2;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remindyu-dither-inner-bg {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #cbcbcb;
+}
+
+.remindyu-inner-logo {
+  width: 60%;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+  position: relative;
+  z-index: 1;
+}
+
 .remindyu-dither-circle {
   position: absolute;
   left: 50%;
-  top: 44vh;
+  /* top = logo clearance (logo top + logo height + 1× logo height padding) + circle radius */
+  top: calc(var(--logo-clearance) + clamp(130px, 19vmin, 260px));
   transform: translate(-50%, -50%);
   width: clamp(260px, 38vmin, 520px);
   height: clamp(260px, 38vmin, 520px);
@@ -58,7 +90,8 @@
   z-index: 5;
   text-align: center;
   width: 100%;
-  margin-top: calc(44vh + clamp(130px, 19vmin, 260px) + 3rem);
+  /* margin = logo clearance + full circle diameter + breathing room */
+  margin-top: calc(var(--logo-clearance) + clamp(260px, 38vmin, 520px) + 3rem);
   padding: 0 7vw clamp(1.5rem, 4vh, 3rem);
   box-sizing: border-box;
 }
@@ -388,11 +421,11 @@
 }
 
 @media (max-width: 768px) {
-  /* Mobile dither: 65vw diameter, top half */
+  /* Mobile dither: 65vw diameter — top uses --logo-clearance (auto 60vw on mobile) + radius */
   .remindyu-dither-circle {
     width: 65vw;
     height: 65vw;
-    top: 32vh;
+    top: calc(var(--logo-clearance) + 32.5vw);
     left: 50%;
     transform: translate(-50%, -50%);
   }
@@ -402,7 +435,7 @@
   }
 
   .remindyu-hero-text {
-    margin-top: calc(32vh + 32.5vw + 3rem);
+    margin-top: calc(var(--logo-clearance) + 65vw + 3rem);
   }
 
   .remindyu-feature {
@@ -427,10 +460,11 @@
   .remindyu-dither-circle {
     width: 70vw;
     height: 70vw;
+    top: calc(var(--logo-clearance) + 35vw);
   }
 
   .remindyu-hero-text {
-    margin-top: calc(32vh + 35vw + 3rem);
+    margin-top: calc(var(--logo-clearance) + 70vw + 3rem);
   }
 
   .remindyu-privacy-callout__heading {

@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import Dither from "./Dither";
 import BlobCursorDither from "./BlobCursorDither";
-import Privacy from "./privacy";
-import Terms from "./terms";
 import RemindYu from "./remindyu";
+import Privacy from "./remindyu/privacy";
+import Terms from "./remindyu/terms";
 import LogoSvg from "./LogoSvg";
 import "./App.css";
 
@@ -19,7 +19,7 @@ export default function App() {
   });
 
   const [isMobile, setIsMobile] = useState(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
-  const [logoSize, setLogoSize] = useState(isMobile ? "70vw" : "40vw");
+  const [logoSize, setLogoSize] = useState(isMobile ? "60vw" : "30vw");
   const [ditherEnabled, setDitherEnabled] = useState(true);
   const [ditherPaused, setDitherPaused] = useState(false);
   const [isReturnTransition, setIsReturnTransition] = useState(false);
@@ -89,7 +89,7 @@ export default function App() {
 
       const newIsMobile = width <= 768;
       setIsMobile(newIsMobile);
-      setLogoSize(newIsMobile ? "70vw" : "40vw");
+      setLogoSize(newIsMobile ? "60vw" : "30vw");
 
       const minHeight = 600;
       const maxHeight = 2160;

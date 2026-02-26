@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from "react";
-import BlobCursorDither from "./BlobCursorDither";
-import YuniverseLogoHeader from "./YuniverseLogoHeader";
+import BlobCursorDither from "../BlobCursorDither";
+import YuniverseLogoHeader from "../YuniverseLogoHeader";
 import "./Privacy.css";
 
 export default function Terms() {
@@ -35,6 +35,11 @@ export default function Terms() {
 
   useEffect(() => {
     document.title = 'Terms of Use - remind.yu';
+
+    const favicon = document.querySelector("link[rel~='icon']");
+    const originalHref = favicon?.getAttribute("href");
+    if (favicon) favicon.href = "/images/remindyu-favicon.svg";
+
     window.scrollTo(0, 0);
     const root = document.getElementById('root');
     const body = document.body;
@@ -44,6 +49,7 @@ export default function Terms() {
     if (html) html.style.overflow = 'visible';
     return () => {
       document.title = 'The Yuniverse';
+      if (favicon && originalHref) favicon.href = originalHref;
       if (root) root.style.overflow = '';
       if (body) body.style.overflow = '';
       if (html) html.style.overflow = '';
@@ -80,7 +86,7 @@ export default function Terms() {
           </div>
           <div className="privacy-permission-block" style={{marginBottom: '1.2em'}}>
             <div className="privacy-permission-title"><strong>Developer</strong></div>
-            <div className="privacy-permission-desc">Yuniverse Australia (“we”, “us”, “our”)</div>
+            <div className="privacy-permission-desc">Yuniverse Australia ("we", "us", "our")</div>
           </div>
           <div className="privacy-permission-block">
             <div className="privacy-permission-title"><strong>Contact</strong></div>
@@ -88,11 +94,11 @@ export default function Terms() {
           </div>
         </div>
         <div className="privacy-section">
-          <p>By downloading, installing, accessing, or using remind.yu (the “App”), you agree to these Terms of Use (the “Terms”). If you do not agree, do not use the App.</p>
+          <p>By downloading, installing, accessing, or using remind.yu (the "App"), you agree to these Terms of Use (the "Terms"). If you do not agree, do not use the App.</p>
         </div>
         <div className="privacy-section">
           <h2>About these Terms</h2>
-          <p>These Terms apply to your use of the App on Android devices. If you use the App through an app store or platform (e.g., Google Play), that platform’s terms also apply to your relationship with the platform.</p>
+          <p>These Terms apply to your use of the App on Android devices. If you use the App through an app store or platform (e.g., Google Play), that platform's terms also apply to your relationship with the platform.</p>
         </div>
         <div className="privacy-section">
           <h2>Licence to use the App</h2>
@@ -105,7 +111,7 @@ export default function Terms() {
             <li>copy, modify, distribute, sell, rent, lease, sublicense, or otherwise commercially exploit the App</li>
             <li>reverse engineer, decompile, or attempt to extract source code from the App</li>
             <li>bypass or interfere with security or integrity features</li>
-            <li>use the App in a way that is unlawful, harmful, abusive, or infringes another person’s rights</li>
+            <li>use the App in a way that is unlawful, harmful, abusive, or infringes another person's rights</li>
           </ul>
         </div>
         <div className="privacy-section">
@@ -115,7 +121,7 @@ export default function Terms() {
           <ul>
             <li>what you enter into the App (including any sensitive information)</li>
             <li>keeping your device secure (screen lock, OS updates, etc.)</li>
-            <li>your device’s notification and battery settings</li>
+            <li>your device's notification and battery settings</li>
           </ul>
         </div>
         <div className="privacy-section">
@@ -165,11 +171,11 @@ export default function Terms() {
         <div className="privacy-section">
           <h2>Fees and purchases</h2>
           <p>The App is currently provided free of charge unless stated otherwise.<br/>
-          If we introduce paid features, subscriptions, or in-app purchases in the future, pricing and purchase terms will be shown at the point of purchase and may be governed by the app store’s billing terms in addition to these Terms.</p>
+          If we introduce paid features, subscriptions, or in-app purchases in the future, pricing and purchase terms will be shown at the point of purchase and may be governed by the app store's billing terms in addition to these Terms.</p>
         </div>
         <div className="privacy-section">
           <h2>Intellectual property</h2>
-          <p>The App (including code, UI/design, trademarks, and branding, including “remind.yu”) is owned by Yuniverse Australia and/or its licensors and is protected by intellectual property laws.</p>
+          <p>The App (including code, UI/design, trademarks, and branding, including "remind.yu") is owned by Yuniverse Australia and/or its licensors and is protected by intellectual property laws.</p>
         </div>
         <div className="privacy-section">
           <h2>Third-party materials and open-source</h2>
@@ -181,7 +187,7 @@ export default function Terms() {
         </div>
         <div className="privacy-section">
           <h2>Disclaimer</h2>
-          <p>To the maximum extent permitted by law, the App is provided “as is” and “as available.” We do not make warranties that the App will be uninterrupted, error-free, or meet your specific requirements.</p>
+          <p>To the maximum extent permitted by law, the App is provided "as is" and "as available." We do not make warranties that the App will be uninterrupted, error-free, or meet your specific requirements.</p>
         </div>
         <div className="privacy-section">
           <h2>Limitation of liability</h2>

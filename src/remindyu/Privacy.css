@@ -19,8 +19,7 @@
   margin-right: 7vw;
   margin-bottom: 4rem;
   margin-left: 7vw;
-  /* top = logo top (7vh) + logo height (30vw × aspect 0.23) + equal breathing room */
-  margin-top: calc(7vh + 30vw * 0.23 + 30vw * 0.23);
+  margin-top: var(--logo-clearance);
   padding-top: 0;
   color: #fff;
   line-height: 1.7;
@@ -82,7 +81,7 @@
 }
 
 .privacy-footer {
-  margin-top: calc(30vw * 0.23);
+  margin-top: var(--logo-height);
   padding-top: 0;
   border-top: none;
   text-align: left;
@@ -95,15 +94,7 @@
     padding: 1.5rem 1rem;
   }
 
-  /* Logo width on mobile is 60vw — handled by YuniverseLogoHeader.css */
-
-  .privacy-content {
-    margin-top: calc(7vh + 60vw * 0.23 + 60vw * 0.23);
-  }
-
-  .privacy-footer {
-    margin-top: calc(60vw * 0.23);
-  }
+  /* Logo clearance auto-adjusts via --logo-clearance / --logo-height from YuniverseLogoHeader.css */
 
   .privacy-title {
     font-size: 2rem;
