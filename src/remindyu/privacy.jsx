@@ -39,7 +39,7 @@ export default function Privacy() {
 
     const favicon = document.querySelector("link[rel~='icon']");
     const originalHref = favicon?.getAttribute("href");
-    if (favicon) favicon.href = "/images/remindyu-favicon.svg";
+    if (favicon) favicon.href = "/images/remindyu/remindyu-favicon.svg";
 
     window.scrollTo(0, 0);
 

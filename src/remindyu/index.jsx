@@ -9,33 +9,51 @@ import "./RemindYu.css";
 const FEATURES = [
   {
     number: "01",
-    name: "Nagging.",
-    desc: "Set a repeat interval on any reminder. If you haven't marked it done, remind.yu will keep notifying you at that interval. It'll only stop when you actually mark it done.",
+    name: "Dashboard.",
+    desc: "Your reminders laid out across a full calendar. See what's due when, across the whole month, at a glance.",
+    screenshot: "/images/remindyu/Dashboard.png",
   },
   {
     number: "02",
-    name: "High Granularity.",
-    desc: "Your schedule isn't just clock times. Anchor reminders to meals: before, during or after, or set them by an exact time of day.",
+    name: "Reminders for the Day.",
+    desc: "See what's lined up for the day, with its icon and status, so you always know exactly what's still to come.",
+    screenshot: "/images/remindyu/RemindersForTheDay.png",
   },
   {
     number: "03",
-    name: "Linked Reminders.",
-    desc: "Chain reminders into full routines. Finish one task and automatically trigger the next, like a 30-minute cooldown before your next reminder fires. Build sequences that match how you actually work.",
+    name: "Priority Presets.",
+    desc: "Set presets for High, Medium and Low priority reminders: notification type, sound, vibration and nagging. You can pick a level for each reminder, and it inherits your presets. Override per reminder when you want.",
+    screenshot: "/images/remindyu/PriorityPresetsNagging.png",
   },
   {
     number: "04",
-    name: "Alarm or Notification.",
-    desc: "Choose per reminder: a hard alarm that demands attention, or a quiet notification that stays out of your way. The right interruption level for every reminder.",
+    name: "High Granularity.",
+    desc: "Your schedule isn't just clock times. Set reminders before, during or after meals, or at an exact time. remind.yu fits around how you actually live.",
+    screenshot: "/images/remindyu/BeforeBreakfastReminder.png",
   },
   {
     number: "05",
-    name: "Yours, Entirely.",
-    desc: "Assign your own icons and colour palettes to every reminder. Your dashboard, your visual language, making it faster to recognise what's next at a glance.",
+    name: "Linked Reminders.",
+    desc: "Link any reminder to another. Mark one done and the next fires automatically after a set delay. Build routines that flow on their own.",
+    screenshot: "/images/remindyu/LinkedReminder.png",
   },
   {
     number: "06",
-    name: "Dashboard.",
-    desc: "A calendar view that shows all your upcoming, active and past reminders in one place. With everything laid out clearly, always.",
+    name: "Set it Once.",
+    desc: "Schedule reminders to fire once, daily, weekly, fortnightly, monthly or yearly. Set your bill payment, your trash collection, your habit. remind.yu handles the rest.",
+    screenshot: "/images/remindyu/TimedReminder.png",
+  },
+  {
+    number: "07",
+    name: "Alarm or Notification.",
+    desc: "A full-screen alarm that requires dismissal. No missing it. Or a quiet notification for reminders that don't need to interrupt. The right signal for every reminder.",
+    screenshot: "/images/remindyu/AlarmReminder.png",
+  },
+  {
+    number: "08",
+    name: "Yours, Entirely.",
+    desc: "Every reminder gets its own icon and colour. At a glance, your Morning Coffee gets a coffee icon and colour, your Evening Walk features your best friend. Your list, instantly readable.",
+    screenshot: "/images/remindyu/ReminderList.png",
   },
 ];
 
@@ -126,7 +144,7 @@ export default function RemindYu() {
 
     const favicon = document.querySelector("link[rel~='icon']");
     const originalHref = favicon?.getAttribute("href");
-    if (favicon) favicon.href = "/images/remindyu-favicon.svg";
+    if (favicon) favicon.href = "/images/remindyu/remindyu-favicon.svg";
 
     window.scrollTo(0, 0);
 
@@ -137,6 +155,8 @@ export default function RemindYu() {
     if (root) root.style.overflow = "visible";
     if (body) body.style.overflow = "visible";
     if (html) html.style.overflow = "visible";
+    if (body) body.style.background = "#121212";
+    if (html) html.style.background = "#121212";
 
     return () => {
       document.title = "The Yuniverse.";
@@ -144,6 +164,8 @@ export default function RemindYu() {
       if (root) root.style.overflow = "";
       if (body) body.style.overflow = "";
       if (html) html.style.overflow = "";
+      if (body) body.style.background = "";
+      if (html) html.style.background = "";
     };
   }, []);
 
@@ -164,8 +186,8 @@ export default function RemindYu() {
         }
         blurPx={scaledBlur}
         threshold={0.28}
-        color="#cbcbcb"
-        hashColor="#cbcbcb"
+        color="#dddddd"
+        hashColor="#dddddd"
         pixelSize={2}
         whiteCutoff={0.7}
         thresholdShift={-0.4}
@@ -189,6 +211,9 @@ export default function RemindYu() {
             waveFrequency={0.8}
             waveSpeed={0.04}
             enableMouseInteraction={false}
+            pixelSize={5}
+            blackLevel={1.5 / 255}
+            clearColor="#121212"
           />
           <div className="remindyu-dither-inner-circle">
             <div className="remindyu-dither-inner-bg" style={{ opacity: innerOpacity }} />
@@ -215,10 +240,17 @@ export default function RemindYu() {
             <h1 className="remindyu-app-name" style={{ visibility: "hidden" }}>remind.yu</h1>
           )}
           <p className="remindyu-tagline" style={{ opacity: heroFadeOpacity }}>
-            the reminder app that actually reminds you.
+            Private by default. Unignorable by design.
           </p>
-          {/* Play Store badge placeholder */}
-          <div className="remindyu-store-badge" aria-label="Available on Google Play - coming soon" style={{ opacity: heroFadeOpacity }}>
+          {/* Play Store badge */}
+          <a
+            className="remindyu-store-badge"
+            href="https://play.google.com/store/apps/details?id=com.yuniverse.remindyu&pcampaignid=yuniverse_website"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Get remind.yu on Google Play"
+            style={{ opacity: heroFadeOpacity }}
+          >
             <svg
               className="remindyu-store-badge__icon"
               viewBox="0 0 24 24"
@@ -227,8 +259,8 @@ export default function RemindYu() {
             >
               <path d="M3.18 23.76c.31.17.67.19 1 .07l12.55-7.25L13.9 13.7 3.18 23.76zM.54 2.03C.2 2.38 0 2.93 0 3.66v16.68c0 .73.2 1.28.54 1.63l.09.08 9.35-9.35v-.22L.63 1.95l-.09.08zM20.08 10.44l-2.64-1.53-2.93 2.93 2.93 2.93 2.66-1.54c.76-.44.76-1.35-.02-1.79zM3.18.24l13.26 7.67-2.54 2.54L3.18.24z"/>
             </svg>
-            Google Play - coming soon
-          </div>
+            Get it on Google Play
+          </a>
           {/* Scroll cue — inside hero-text so it sits below badge without overlapping */}
           <div className="remindyu-scroll-cue" aria-hidden="true" style={{ opacity: heroFadeOpacity }}>
             <div className="remindyu-scroll-cue__line" />
@@ -249,22 +281,11 @@ export default function RemindYu() {
               <p className="remindyu-feature__desc">{f.desc}</p>
             </div>
             <div className="remindyu-feature__visual" aria-hidden="true">
-              <div className="remindyu-screenshot-placeholder">
-                {/* Screenshot icon */}
-                <svg
-                  className="remindyu-screenshot-placeholder__icon"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="5" y="2" width="14" height="20" rx="2" />
-                  <circle cx="12" cy="19" r="0.5" fill="currentColor" />
-                </svg>
-                screenshot coming soon
-              </div>
+              <img
+                src={f.screenshot}
+                alt=""
+                className="remindyu-feature__screenshot"
+              />
             </div>
           </article>
         ))}
@@ -274,12 +295,11 @@ export default function RemindYu() {
       <section className="remindyu-privacy-callout">
         <p className="remindyu-privacy-callout__eyebrow">Revolves around you</p>
         <h2 className="remindyu-privacy-callout__heading">
-          private by default.
+          Your data stays yours.
         </h2>
         <p className="remindyu-privacy-callout__body">
           We don't collect, store, or transmit any information about your
-          reminders. Your data lives on your device. Only your device.
-          remind.yu doesn't even request Internet permission.
+          reminders by default. On-device only. No cloud. No tracking. No internet permission.
         </p>
         <a className="remindyu-privacy-callout__link" href="/remind.yu/privacy">
           Read the Privacy Policy

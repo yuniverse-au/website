@@ -8,7 +8,7 @@
   min-height: 100vh;
   height: auto;
   width: 100%;
-  background-color: #000;
+  background-color: #121212;
   box-sizing: border-box;
   position: absolute;
   top: 0;
@@ -127,8 +127,13 @@
   color: rgba(255,255,255,0.4);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  cursor: default;
-  user-select: none;
+  text-decoration: none;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.remindyu-store-badge:hover {
+  border-color: rgba(255,255,255,0.5);
+  color: rgba(255,255,255,0.7);
 }
 
 .remindyu-store-badge__icon {
@@ -234,30 +239,13 @@
   align-items: flex-start;
 }
 
-.remindyu-screenshot-placeholder {
+.remindyu-feature__screenshot {
   width: 100%;
   max-width: 280px;
-  aspect-ratio: 9 / 19.5;
-  background: #0d0d0d;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 0.5em;
-  color: rgba(255,255,255,0.12);
-  font-size: 0.65rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  user-select: none;
+  border-radius: 2.6rem;
+  display: block;
   pointer-events: none;
-}
-
-.remindyu-screenshot-placeholder__icon {
-  width: 1.8em;
-  height: 1.8em;
-  opacity: 0.15;
+  user-select: none;
 }
 
 /* ============================================================
@@ -415,8 +403,9 @@
     margin-top: 2rem;
   }
 
-  .remindyu-screenshot-placeholder {
+  .remindyu-feature__screenshot {
     max-width: 200px;
+    border-radius: 1.9rem;
   }
 }
 
