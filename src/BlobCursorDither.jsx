@@ -554,6 +554,7 @@ export default function BlobCursorDither({
   // Touch state tracking for mobile fade behavior
   const isTouchingRef = useRef(false);
   const touchFadeTimeoutRef = useRef(null);
+  const lastTouchEndTimeRef = useRef(0);
   const velocityRef = useRef({ x: 0, y: 0 });
   const lastTouchPosRef = useRef({ x: 0, y: 0 });
   const lastTouchTimeRef = useRef(0);
@@ -667,7 +668,7 @@ export default function BlobCursorDither({
       if (!isTouchingRef.current && !isExpanding.current) {
         fadeOutBlobs();
       }
-    }, 150); // Fade after 150ms of no touch
+    }, 150); // Fade after 3s of no touch on mobile
   }, [fadeOutBlobs]);
 
   const applyMomentum = useCallback(() => {
@@ -1002,8 +1003,8 @@ export default function BlobCursorDither({
     
     // Use traditional loop instead of forEach to avoid callback overhead
     for (let i = 0; i < trailCount; i++) {
-      quickX.current[i](scaledX);
-      quickY.current[i](scaledY);
+      quickX.current[i]?.(scaledX);
+      quickY.current[i]?.(scaledY);
     }
   }, [sizes, fadeInBlobs, setBlobTargetPosition]);
 
@@ -1027,7 +1028,8 @@ export default function BlobCursorDither({
 
   const onTouchEnd = useCallback((e) => {
     isTouchingRef.current = false;
-    
+    lastTouchEndTimeRef.current = performance.now();
+
     // Apply momentum if there's sufficient velocity
     const velocityMagnitude = Math.sqrt(
       velocityRef.current.x * velocityRef.current.x +
@@ -1780,14 +1782,15 @@ export default function BlobCursorDither({
       const timeSinceMove = currentTime - lastMoveTime;
       const isFading = blobOpacity.current > 0 && blobOpacity.current < 1;
       const maskActive = isMaskMode && (maskActivation === "always" || (maskActivation === "transition" && maskActiveRef.current));
-      const isIdle = timeSinceMove > IDLE_DITHER_SKIP_THRESHOLD && !isMoving && isSettled && !isExpanding.current && !isFading;
+      const isRecentTouch = (currentTime - lastTouchEndTimeRef.current) < 3000;
+      const isIdle = timeSinceMove > IDLE_DITHER_SKIP_THRESHOLD && !isMoving && isSettled && !isExpanding.current && !isFading && !isRecentTouch;
       const shouldSkipIdle = SKIP_DITHER_WHEN_IDLE && !maskActive;
 
       if (isIdle && shouldSkipIdle) {
         return; // Skip rendering entirely when blob is idle to save CPU
       }
-      
-      if (!maskActive && timeSinceMove > 100 && !isMoving && isSettled && !isExpanding.current && !isFading) {
+
+      if (!maskActive && timeSinceMove > 100 && !isMoving && isSettled && !isExpanding.current && !isFading && !isRecentTouch) {
         return; // Skip rendering when everything is settled and not exiting or expanding or fading
       }
       
@@ -2057,7 +2060,7 @@ export default function BlobCursorDither({
           const resolutionMaxed = autoResolutionMultiplier.current >= MAX_AUTO_RESOLUTION - 0.001;
           const blurAtFloor = !BLUR_ENABLED || blurScaleRef.current <= BLUR_MIN_SCALE + 0.01;
 
-          if (resolutionMaxed && blurAtFloor) {
+          if (resolutionMaxed && blurAtFloor && !isFading && !isRecentTouch) {
             disableBlob();
             return;
           }
@@ -2131,6 +2134,8 @@ export default function BlobCursorDither({
       // Disable the blob if render time becomes extreme when already maxed out and not expanding
       if (
         !isExpanding.current &&
+        !isFading &&
+        !isRecentTouch &&
         autoResolutionMultiplier.current >= MAX_AUTO_RESOLUTION - 0.001 &&
         (!BLUR_ENABLED || blurScaleRef.current <= BLUR_MIN_SCALE + 0.01) &&
         frameTime > frameDebtThreshold * 3
@@ -2202,6 +2207,13 @@ export default function BlobCursorDither({
     }
 
     loop(performance.now());
+
+    // On touch-primary devices, fade out immediately at load since there's no cursor
+    const isTouchPrimary = navigator.maxTouchPoints > 0 && !window.matchMedia("(hover: hover)").matches;
+    if (isTouchPrimary) {
+      fadeOutBlobs();
+    }
+
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(idleTimer);
