@@ -38,7 +38,7 @@ export default function Terms() {
 
     const favicon = document.querySelector("link[rel~='icon']");
     const originalHref = favicon?.getAttribute("href");
-    if (favicon) favicon.href = "/images/remindyu/remindyu-favicon.svg";
+    if (favicon) favicon.href = "/images/remindyu/remindyu-icon.svg";
 
     window.scrollTo(0, 0);
     const root = document.getElementById('root');

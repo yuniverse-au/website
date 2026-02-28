@@ -3,7 +3,6 @@ import BlobCursorDither from "../BlobCursorDither";
 import Dither from "../Dither";
 import YuniverseLogoHeader from "../YuniverseLogoHeader";
 import SplitText from "./SplitText";
-import logoWhite from "./logo-black.svg";
 import "./RemindYu.css";
 
 const FEATURES = [
@@ -144,7 +143,7 @@ export default function RemindYu() {
 
     const favicon = document.querySelector("link[rel~='icon']");
     const originalHref = favicon?.getAttribute("href");
-    if (favicon) favicon.href = "/images/remindyu/remindyu-favicon.svg";
+    if (favicon) favicon.href = "/images/remindyu/remindyu-icon.svg";
 
     window.scrollTo(0, 0);
 
@@ -217,7 +216,10 @@ export default function RemindYu() {
           />
           <div className="remindyu-dither-inner-circle">
             <div className="remindyu-dither-inner-bg" style={{ opacity: innerOpacity }} />
-            <img src={logoWhite} alt="" className="remindyu-inner-logo" />
+            <svg className="remindyu-inner-logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 314.59 377.53" fill="#121212">
+              <path d="M278.03,221.41l5.83-84.49-41.61-75.24-52.3-21.2V14.97l-14.97-14.97h-35.39l-14.97,14.97v25.52l-52.3,21.2-41.61,75.24,5.83,84.49L0,262.72l15.17,56.86h284.26l15.17-56.86-36.55-41.31ZM166.44,35.59h-18.29v-6.68l3.9-3.9h10.5l3.9,3.9v6.68Z"/>
+              <polygon points="117.54 329.77 120.02 358.53 140.37 377.53 174.22 377.53 194.57 358.53 197.04 329.77 117.54 329.77"/>
+            </svg>
           </div>
         </div>
 
