@@ -57,16 +57,6 @@ const FEATURES = [
 ];
 
 export default function RemindYu() {
-  useEffect(() => {
-    const link = document.querySelector("link[rel='icon']") || document.createElement("link");
-    const prev = link.href;
-    link.rel = "icon";
-    link.type = "image/svg+xml";
-    link.href = "/images/remindyu/remindyu-icon.svg";
-    document.head.appendChild(link);
-    return () => { link.href = prev; };
-  }, []);
-
   const [isMobile, setIsMobile] = useState(
     /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
   );
