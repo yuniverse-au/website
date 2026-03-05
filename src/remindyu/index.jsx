@@ -1,9 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import BlobCursorDither from "../BlobCursorDither";
 import Dither from "../Dither";
 import YuniverseLogoHeader from "../YuniverseLogoHeader";
 import SplitText from "./SplitText";
 import "./RemindYu.css";
+
+/* Bayer 8×8 ordered-dither threshold map (values 0–63) */
+const BAYER8 = [
+  [ 0,32, 8,40, 2,34,10,42],
+  [48,16,56,24,50,18,58,26],
+  [12,44, 4,36,14,46, 6,38],
+  [60,28,52,20,62,30,54,22],
+  [ 3,35,11,43, 1,33, 9,41],
+  [51,19,59,27,49,17,57,25],
+  [15,47, 7,39,13,45, 5,37],
+  [63,31,55,23,61,29,53,21],
+];
 
 const FEATURES = [
   {
@@ -65,6 +77,73 @@ export default function RemindYu() {
   const [innerOpacity, setInnerOpacity] = useState(0);
   const [heroFadeOpacity, setHeroFadeOpacity] = useState(0);
   const [showAppName, setShowAppName] = useState(false);
+
+  /* ── Dither-fill canvas for store badge ── */
+  const badgeCanvasRef = useRef(null);
+  const ditherRef = useRef({ progress: 0, target: 0, raf: null });
+
+  const drawBadgeDither = () => {
+    const canvas = badgeCanvasRef.current;
+    const s = ditherRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    s.progress += (s.target - s.progress) * 0.12;
+    if (Math.abs(s.progress - s.target) < 0.01) s.progress = s.target;
+
+    const dpr = window.devicePixelRatio || 1;
+    const pxSize = Math.round(2 * dpr);
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    if (s.progress > 0.005) {
+      const cols = Math.ceil(w / pxSize);
+      const rows = Math.ceil(h / pxSize);
+      const threshold = s.progress * 64;
+      ctx.fillStyle = '#ffffff';
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (threshold > BAYER8[r % 8][c % 8]) {
+            ctx.fillRect(c * pxSize, r * pxSize, pxSize, pxSize);
+          }
+        }
+      }
+    }
+
+    if (Math.abs(s.progress - s.target) > 0.005) {
+      s.raf = requestAnimationFrame(drawBadgeDither);
+    } else {
+      s.raf = null;
+    }
+  };
+
+  const handleBadgeEnter = () => {
+    const canvas = badgeCanvasRef.current;
+    if (canvas) {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+    }
+    ditherRef.current.target = 1;
+    if (!ditherRef.current.raf) {
+      ditherRef.current.raf = requestAnimationFrame(drawBadgeDither);
+    }
+  };
+
+  const handleBadgeLeave = () => {
+    ditherRef.current.target = 0;
+    if (!ditherRef.current.raf) {
+      ditherRef.current.raf = requestAnimationFrame(drawBadgeDither);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (ditherRef.current.raf) cancelAnimationFrame(ditherRef.current.raf);
+    };
+  }, []);
 
   useEffect(() => {
     const totalMs  = 9300;
@@ -244,7 +323,7 @@ export default function RemindYu() {
           <p className="remindyu-tagline" style={{ opacity: heroFadeOpacity }}>
             Private by default. Unignorable by design.
           </p>
-          {/* Play Store badge */}
+          {/* Play Store badge — brutalist */}
           <a
             className="remindyu-store-badge"
             href="https://play.google.com/store/apps/details?id=com.yuniverse.remindyu&pcampaignid=yuniverse_website"
@@ -252,16 +331,22 @@ export default function RemindYu() {
             rel="noopener noreferrer"
             aria-label="Get remind.yu on Google Play"
             style={{ opacity: heroFadeOpacity }}
+            onMouseEnter={handleBadgeEnter}
+            onMouseLeave={handleBadgeLeave}
           >
-            <svg
-              className="remindyu-store-badge__icon"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path d="M3.18 23.76c.31.17.67.19 1 .07l12.55-7.25L13.9 13.7 3.18 23.76zM.54 2.03C.2 2.38 0 2.93 0 3.66v16.68c0 .73.2 1.28.54 1.63l.09.08 9.35-9.35v-.22L.63 1.95l-.09.08zM20.08 10.44l-2.64-1.53-2.93 2.93 2.93 2.93 2.66-1.54c.76-.44.76-1.35-.02-1.79zM3.18.24l13.26 7.67-2.54 2.54L3.18.24z"/>
-            </svg>
-            Get it on Google Play
+            <canvas className="remindyu-store-badge__fill" ref={badgeCanvasRef} aria-hidden="true" />
+            <span className="remindyu-store-badge__label">
+              <svg
+                className="remindyu-store-badge__icon"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M3.18 23.76c.31.17.67.19 1 .07l12.55-7.25L13.9 13.7 3.18 23.76zM.54 2.03C.2 2.38 0 2.93 0 3.66v16.68c0 .73.2 1.28.54 1.63l.09.08 9.35-9.35v-.22L.63 1.95l-.09.08zM20.08 10.44l-2.64-1.53-2.93 2.93 2.93 2.93 2.66-1.54c.76-.44.76-1.35-.02-1.79zM3.18.24l13.26 7.67-2.54 2.54L3.18.24z"/>
+              </svg>
+              Google Play
+            </span>
+            <span className="remindyu-store-badge__arrow" aria-hidden="true">↗</span>
           </a>
           {/* Scroll cue — inside hero-text so it sits below badge without overlapping */}
           <div className="remindyu-scroll-cue" aria-hidden="true" style={{ opacity: heroFadeOpacity }}>
