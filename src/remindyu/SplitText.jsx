@@ -53,7 +53,8 @@ const SplitText = ({
       tween.kill();
       try { split.revert(); } catch (_) {}
     };
-  }, [fontsLoaded]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fontsLoaded, text, splitType, delay, duration, ease, JSON.stringify(from), JSON.stringify(to), onLetterAnimationComplete]);
 
   const Tag = tag || 'p';
   return (

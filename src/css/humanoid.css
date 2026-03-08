@@ -1,18 +1,11 @@
 /*
- * Humanoid font by Manfred Klein
- * Download from: https://www.dafont.com/humanoid.font
- *
- * After downloading, extract the ZIP and place the font file(s)
- * into /fonts/humanoid/ — e.g.:
- *   /fonts/humanoid/Humanoid.ttf
- *
- * If the filename differs, update the src path below to match.
+ * Humanoid font by Andreas Nylin (dustBUST)
+ * Source: https://www.dafont.com/humanoid.font
  */
 
 @font-face {
   font-family: 'Humanoid';
-  src: url('/fonts/humanoid/Humanoid.ttf') format('truetype'),
-       url('/fonts/humanoid/Humanoid.otf') format('opentype');
+  src: url('../../fonts/humanoid/humanoid.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;

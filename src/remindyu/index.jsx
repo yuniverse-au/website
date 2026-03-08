@@ -73,10 +73,15 @@ export default function RemindYu() {
     /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
   );
   const [blobScale, setBlobScale] = useState(1);
-  const [ditherWaveColor, setDitherWaveColor] = useState([-80, -80, -80]);
-  const [innerOpacity, setInnerOpacity] = useState(0);
-  const [heroFadeOpacity, setHeroFadeOpacity] = useState(0);
   const [showAppName, setShowAppName] = useState(false);
+
+  /* ── Animation refs (imperative — avoid per-frame re-renders) ── */
+  const ditherWaveColorRef = useRef([-80, -80, -80]);
+  const innerBgRef = useRef(null);
+  const logoWrapRef = useRef(null);
+  const taglineRef = useRef(null);
+  const badgeWrapRef = useRef(null);
+  const scrollCueRef = useRef(null);
 
   /* ── Dither-fill canvas for store badge ── */
   const badgeCanvasRef = useRef(null);
@@ -157,6 +162,9 @@ export default function RemindYu() {
     const t0 = performance.now();
     let rafId;
 
+    // showAppName triggers a single React render at the reveal milestone
+    const revealTimer = setTimeout(() => setShowAppName(true), revealMs);
+
     const animate = (now) => {
       const elapsed = Math.min(now - t0, totalMs);
 
@@ -174,18 +182,28 @@ export default function RemindYu() {
         const t = (elapsed - revealMs - holdMs) / fallMs;
         waveVal = peak + (final - peak) * (1 - Math.pow(1 - t, 5));
       }
-      setDitherWaveColor([waveVal, waveVal, waveVal]);
 
-      // Circle, text, and hero elements reveal at revealMs
-      setInnerOpacity(elapsed >= revealMs ? 1 : 0);
-      setShowAppName(elapsed >= revealMs);
-      setHeroFadeOpacity(Math.min(1, Math.max(0, (elapsed - revealMs) / 1000)));
+      // Update shader color via ref — no React re-render
+      ditherWaveColorRef.current = [waveVal, waveVal, waveVal];
+
+      // Imperatively update DOM opacities
+      const innerOpacity = elapsed >= revealMs ? 1 : 0;
+      if (innerBgRef.current) innerBgRef.current.style.opacity = innerOpacity;
+
+      const heroFadeOpacity = Math.min(1, Math.max(0, (elapsed - revealMs) / 1000));
+      if (logoWrapRef.current)  logoWrapRef.current.style.opacity  = heroFadeOpacity;
+      if (taglineRef.current)   taglineRef.current.style.opacity   = heroFadeOpacity;
+      if (badgeWrapRef.current) badgeWrapRef.current.style.opacity = heroFadeOpacity;
+      if (scrollCueRef.current) scrollCueRef.current.style.opacity = heroFadeOpacity;
 
       if (elapsed < totalMs) rafId = requestAnimationFrame(animate);
     };
 
     rafId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(rafId);
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearTimeout(revealTimer);
+    };
   }, []);
 
   useEffect(() => {
@@ -276,14 +294,15 @@ export default function RemindYu() {
       {/* ── Hero ── */}
       <section className="remindyu-hero">
         {/* Logo */}
-        <div style={{ opacity: heroFadeOpacity }}>
+        <div ref={logoWrapRef} style={{ opacity: 0 }}>
           <YuniverseLogoHeader />
         </div>
 
         {/* Circular dither animation */}
         <div className="remindyu-dither-circle" aria-hidden="true">
           <Dither
-            waveColor={ditherWaveColor}
+            waveColor={[-80, -80, -80]}
+            waveColorRef={ditherWaveColorRef}
             colorNum={8}
             waveAmplitude={0.3}
             waveFrequency={0.8}
@@ -294,7 +313,7 @@ export default function RemindYu() {
             clearColor="#121212"
           />
           <div className="remindyu-dither-inner-circle">
-            <div className="remindyu-dither-inner-bg" style={{ opacity: innerOpacity }} />
+            <div ref={innerBgRef} className="remindyu-dither-inner-bg" style={{ opacity: 0 }} />
             <svg className="remindyu-inner-logo" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 314.59 377.53" fill="#121212">
               <path d="M278.03,221.41l5.83-84.49-41.61-75.24-52.3-21.2V14.97l-14.97-14.97h-35.39l-14.97,14.97v25.52l-52.3,21.2-41.61,75.24,5.83,84.49L0,262.72l15.17,56.86h284.26l15.17-56.86-36.55-41.31ZM166.44,35.59h-18.29v-6.68l3.9-3.9h10.5l3.9,3.9v6.68Z"/>
               <polygon points="117.54 329.77 120.02 358.53 140.37 377.53 174.22 377.53 194.57 358.53 197.04 329.77 117.54 329.77"/>
@@ -320,17 +339,18 @@ export default function RemindYu() {
           ) : (
             <h1 className="remindyu-app-name" style={{ visibility: "hidden" }}>remind.yu</h1>
           )}
-          <p className="remindyu-tagline" style={{ opacity: heroFadeOpacity }}>
+          <p ref={taglineRef} className="remindyu-tagline" style={{ opacity: 0 }}>
             Private by default. Unignorable by design.
           </p>
           {/* Play Store badge — brutalist */}
           <a
+            ref={badgeWrapRef}
             className="remindyu-store-badge"
             href="https://play.google.com/store/apps/details?id=com.yuniverse.remindyu&pcampaignid=yuniverse_website"
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Get remind.yu on Google Play"
-            style={{ opacity: heroFadeOpacity }}
+            style={{ opacity: 0 }}
             onMouseEnter={handleBadgeEnter}
             onMouseLeave={handleBadgeLeave}
           >
@@ -349,7 +369,7 @@ export default function RemindYu() {
             <span className="remindyu-store-badge__arrow" aria-hidden="true">↗</span>
           </a>
           {/* Scroll cue — inside hero-text so it sits below badge without overlapping */}
-          <div className="remindyu-scroll-cue" aria-hidden="true" style={{ opacity: heroFadeOpacity }}>
+          <div ref={scrollCueRef} className="remindyu-scroll-cue" aria-hidden="true" style={{ opacity: 0 }}>
             <div className="remindyu-scroll-cue__line" />
             <span className="remindyu-scroll-cue__label">scroll</span>
           </div>

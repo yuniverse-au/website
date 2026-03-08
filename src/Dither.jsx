@@ -196,6 +196,7 @@ function DitheredWaves({
   waveFrequency,
   waveAmplitude,
   waveColor,
+  waveColorRef,
   colorNum,
   pixelSize,
   blackLevel,
@@ -253,9 +254,10 @@ function DitheredWaves({
     if (u.waveFrequency.value !== waveFrequency) u.waveFrequency.value = waveFrequency;
     if (u.waveAmplitude.value !== waveAmplitude) u.waveAmplitude.value = waveAmplitude;
 
-    if (!prevColor.current.every((v, i) => v === waveColor[i])) {
-      u.waveColor.value.set(...waveColor);
-      prevColor.current = [...waveColor];
+    const color = waveColorRef ? waveColorRef.current : waveColor;
+    if (!prevColor.current.every((v, i) => v === color[i])) {
+      u.waveColor.value.set(...color);
+      prevColor.current = [...color];
     }
 
     u.enableMouseInteraction.value = enableMouseInteraction ? 1 : 0;
@@ -306,6 +308,7 @@ export default function Dither({
   waveFrequency = 3,
   waveAmplitude = 0.5,
   waveColor = [0, 0, 0],
+  waveColorRef = null,
   colorNum = 4,
   pixelSize = 2,
   blackLevel = 0,
@@ -337,6 +340,7 @@ export default function Dither({
         waveFrequency={waveFrequency}
         waveAmplitude={waveAmplitude}
         waveColor={waveColor}
+        waveColorRef={waveColorRef}
         colorNum={colorNum}
         pixelSize={pixelSize}
         blackLevel={blackLevel}
