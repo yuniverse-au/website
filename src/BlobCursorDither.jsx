@@ -668,7 +668,7 @@ export default function BlobCursorDither({
       if (!isTouchingRef.current && !isExpanding.current) {
         fadeOutBlobs();
       }
-    }, 150); // Fade after 3s of no touch on mobile
+    }, 150); // Fade after 150ms of no touch on mobile
   }, [fadeOutBlobs]);
 
   const applyMomentum = useCallback(() => {
