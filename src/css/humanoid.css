@@ -1,0 +1,12 @@
+/*
+ * Humanoid font by Andreas Nylin (dustBUST)
+ * Source: https://www.dafont.com/humanoid.font
+ */
+
+@font-face {
+  font-family: 'Humanoid';
+  src: url('../../fonts/humanoid/humanoid.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}

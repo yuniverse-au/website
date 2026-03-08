@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "predeploy": "npm run build && powershell -Command \"Copy-Item dist/index.html dist/404.html\"",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist --no-history"
   },
   "dependencies": {
     "@react-three/fiber": "^9.3.0",

@@ -1,0 +1,32 @@
+:root {
+  --logo-width: clamp(230px, 22vw, 380px);
+  --logo-height: calc(var(--logo-width) * 0.23);
+  --logo-clearance: calc(7vh + var(--logo-height) * 2);
+}
+
+@media (max-width: 768px) {
+  :root {
+    --logo-width: clamp(190px, 52vw, 340px);
+  }
+}
+
+.yuniverse-logo-header {
+  position: absolute;
+  top: 7vh;
+  left: 7vw;
+  width: var(--logo-width);
+  max-width: 100%;
+  z-index: 20;
+  text-decoration: none;
+  display: block;
+  mix-blend-mode: difference;
+}
+
+.yuniverse-logo-header__svg {
+  height: auto;
+  width: 100%;
+  pointer-events: none;
+  user-select: none;
+  color: #fff;
+  fill: #fff;
+}

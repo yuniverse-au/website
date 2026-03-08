@@ -12,33 +12,14 @@
   overflow-y: visible;
 }
 
-.privacy-logo-link {
-  position: absolute;
-  top: 7vh;
-  left: 7vw;
-  width: var(--logo-width, 40vw);
-  max-width: 100%;
-  z-index: 10;
-  text-decoration: none;
-  mix-blend-mode: difference;
-}
-
-.privacy-logo {
-  height: auto;
-  width: 100%;
-  pointer-events: auto;
-  user-select: none;
-  cursor: pointer;
-  color: #fff;
-  fill: #fff;
-}
+/* Logo styles now live in YuniverseLogoHeader.css */
 
 .privacy-content {
   max-width: 800px;
   margin-right: 7vw;
   margin-bottom: 4rem;
   margin-left: 7vw;
-  margin-top: calc(7vh + var(--logo-width, 40vw) * 0.23 + var(--logo-width, 40vw) * 0.23);
+  margin-top: var(--logo-clearance);
   padding-top: 0;
   color: #fff;
   line-height: 1.7;
@@ -100,7 +81,7 @@
 }
 
 .privacy-footer {
-  margin-top: calc(var(--logo-width, 40vw) * 0.23);
+  margin-top: var(--logo-height);
   padding-top: 0;
   border-top: none;
   text-align: left;
@@ -113,17 +94,7 @@
     padding: 1.5rem 1rem;
   }
 
-  .privacy-logo-link {
-    width: 70vw;
-  }
-
-  .privacy-content {
-    margin-top: calc(7vh + 70vw * 0.23 + 70vw * 0.23);
-  }
-
-  .privacy-footer {
-    margin-top: calc(70vw * 0.23);
-  }
+  /* Logo clearance auto-adjusts via --logo-clearance / --logo-height from YuniverseLogoHeader.css */
 
   .privacy-title {
     font-size: 2rem;

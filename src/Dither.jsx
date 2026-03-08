@@ -102,6 +102,7 @@ const ditherFragmentShader = `
 precision highp float;
 uniform float colorNum;
 uniform float pixelSize;
+uniform float blackLevel;
 const float bayerMatrix8x8[64] = float[64](
   0.0/64.0, 48.0/64.0, 12.0/64.0, 60.0/64.0,  3.0/64.0, 51.0/64.0, 15.0/64.0, 63.0/64.0,
   32.0/64.0,16.0/64.0, 44.0/64.0, 28.0/64.0, 35.0/64.0,19.0/64.0, 47.0/64.0, 31.0/64.0,
@@ -135,7 +136,7 @@ vec3 dither(vec2 uv, vec3 color) {
   vec3 mask = step(vec3(localCut), color);
 
   // Map 0 -> black, 1 -> grey (whiteLevel)
-  return mix(vec3(0.0), vec3(whiteLevel), mask);
+  return mix(vec3(blackLevel), vec3(whiteLevel), mask);
 }
 
 
@@ -156,7 +157,8 @@ class RetroEffectImpl extends Effect {
   constructor() {
     const uniforms = new Map([
       ['colorNum', new THREE.Uniform(4.0)],
-      ['pixelSize', new THREE.Uniform(2.0)]
+      ['pixelSize', new THREE.Uniform(2.0)],
+      ['blackLevel', new THREE.Uniform(0.0)]
     ]);
     super('RetroEffect', ditherFragmentShader, { uniforms });
     this.uniforms = uniforms;
@@ -173,13 +175,19 @@ class RetroEffectImpl extends Effect {
   get pixelSize() {
     return this.uniforms.get('pixelSize').value;
   }
+  set blackLevel(v) {
+    this.uniforms.get('blackLevel').value = v;
+  }
+  get blackLevel() {
+    return this.uniforms.get('blackLevel').value;
+  }
 }
 
 const WrappedRetro = wrapEffect(RetroEffectImpl);
 
 const RetroEffect = forwardRef((props, ref) => {
-  const { colorNum, pixelSize } = props;
-  return <WrappedRetro ref={ref} colorNum={colorNum} pixelSize={pixelSize} />;
+  const { colorNum, pixelSize, blackLevel } = props;
+  return <WrappedRetro ref={ref} colorNum={colorNum} pixelSize={pixelSize} blackLevel={blackLevel} />;
 });
 RetroEffect.displayName = 'RetroEffect';
 
@@ -188,8 +196,10 @@ function DitheredWaves({
   waveFrequency,
   waveAmplitude,
   waveColor,
+  waveColorRef,
   colorNum,
   pixelSize,
+  blackLevel,
   disableAnimation,
   enableMouseInteraction,
   mouseRadius
@@ -244,9 +254,10 @@ function DitheredWaves({
     if (u.waveFrequency.value !== waveFrequency) u.waveFrequency.value = waveFrequency;
     if (u.waveAmplitude.value !== waveAmplitude) u.waveAmplitude.value = waveAmplitude;
 
-    if (!prevColor.current.every((v, i) => v === waveColor[i])) {
-      u.waveColor.value.set(...waveColor);
-      prevColor.current = [...waveColor];
+    const color = waveColorRef ? waveColorRef.current : waveColor;
+    if (!prevColor.current.every((v, i) => v === color[i])) {
+      u.waveColor.value.set(...color);
+      prevColor.current = [...color];
     }
 
     u.enableMouseInteraction.value = enableMouseInteraction ? 1 : 0;
@@ -276,7 +287,7 @@ function DitheredWaves({
       </mesh>
 
       <EffectComposer>
-        <RetroEffect colorNum={colorNum} pixelSize={pixelSize} />
+        <RetroEffect colorNum={colorNum} pixelSize={pixelSize} blackLevel={blackLevel} />
       </EffectComposer>
 
       <mesh
@@ -297,8 +308,11 @@ export default function Dither({
   waveFrequency = 3,
   waveAmplitude = 0.5,
   waveColor = [0, 0, 0],
+  waveColorRef = null,
   colorNum = 4,
   pixelSize = 2,
+  blackLevel = 0,
+  clearColor = '#000000',
   disableAnimation = false,
   enableMouseInteraction = true,
   mouseRadius = 1
@@ -319,14 +333,17 @@ export default function Dither({
         powerPreference: "high-performance"
       }}
       frameloop="always"
+      onCreated={({ gl }) => gl.setClearColor(clearColor)}
     >
       <DitheredWaves
         waveSpeed={waveSpeed}
         waveFrequency={waveFrequency}
         waveAmplitude={waveAmplitude}
         waveColor={waveColor}
+        waveColorRef={waveColorRef}
         colorNum={colorNum}
         pixelSize={pixelSize}
+        blackLevel={blackLevel}
         disableAnimation={disableAnimation}
         enableMouseInteraction={enableMouseInteraction}
         mouseRadius={mouseRadius}
