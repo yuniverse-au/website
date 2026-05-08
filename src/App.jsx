@@ -33,7 +33,7 @@ export default function App() {
 
   const colorSteps = isMobile ? 8 : 8;
   const waveColor = isMobile ? [0.3, 0.3, 0.3] : [0.2, 0.2, 0.2];
-  const blobPixelSize = 2;
+  const blobPixelSize = 1;
   const blobBaseZIndex = 55;
   const blobHomeZIndex = 8; // Keep blob beneath home logo + side links
   const blobMaskZIndex = 30; // Ensure mask layers sit above the blob during transitions

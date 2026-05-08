@@ -103,6 +103,7 @@ precision highp float;
 uniform float colorNum;
 uniform float pixelSize;
 uniform float blackLevel;
+uniform float whiteLevel;
 const float bayerMatrix8x8[64] = float[64](
   0.0/64.0, 48.0/64.0, 12.0/64.0, 60.0/64.0,  3.0/64.0, 51.0/64.0, 15.0/64.0, 63.0/64.0,
   32.0/64.0,16.0/64.0, 44.0/64.0, 28.0/64.0, 35.0/64.0,19.0/64.0, 47.0/64.0, 31.0/64.0,
@@ -117,7 +118,6 @@ const float bayerMatrix8x8[64] = float[64](
 vec3 dither(vec2 uv, vec3 color) {
   float whiteCutoff    = 0.2;  // higher = fewer light pixels promoted
   float thresholdShift = -2.8; // negative = a few more light speckles
-  float whiteLevel     = 0.6;
 
   color = clamp(color, 0.0, 1.0);
 
@@ -156,9 +156,10 @@ void mainImage(in vec4 inputColor, in vec2 uv, out vec4 outputColor) {
 class RetroEffectImpl extends Effect {
   constructor() {
     const uniforms = new Map([
-      ['colorNum', new THREE.Uniform(4.0)],
-      ['pixelSize', new THREE.Uniform(2.0)],
-      ['blackLevel', new THREE.Uniform(0.0)]
+      ['colorNum',   new THREE.Uniform(4.0)],
+      ['pixelSize',  new THREE.Uniform(2.0)],
+      ['blackLevel', new THREE.Uniform(0.0)],
+      ['whiteLevel', new THREE.Uniform(0.6)],
     ]);
     super('RetroEffect', ditherFragmentShader, { uniforms });
     this.uniforms = uniforms;
@@ -181,13 +182,19 @@ class RetroEffectImpl extends Effect {
   get blackLevel() {
     return this.uniforms.get('blackLevel').value;
   }
+  set whiteLevel(v) {
+    this.uniforms.get('whiteLevel').value = v;
+  }
+  get whiteLevel() {
+    return this.uniforms.get('whiteLevel').value;
+  }
 }
 
 const WrappedRetro = wrapEffect(RetroEffectImpl);
 
 const RetroEffect = forwardRef((props, ref) => {
-  const { colorNum, pixelSize, blackLevel } = props;
-  return <WrappedRetro ref={ref} colorNum={colorNum} pixelSize={pixelSize} blackLevel={blackLevel} />;
+  const { colorNum, pixelSize, blackLevel, whiteLevel } = props;
+  return <WrappedRetro ref={ref} colorNum={colorNum} pixelSize={pixelSize} blackLevel={blackLevel} whiteLevel={whiteLevel} />;
 });
 RetroEffect.displayName = 'RetroEffect';
 
@@ -200,6 +207,7 @@ function DitheredWaves({
   colorNum,
   pixelSize,
   blackLevel,
+  whiteLevel,
   disableAnimation,
   enableMouseInteraction,
   mouseRadius
@@ -287,7 +295,7 @@ function DitheredWaves({
       </mesh>
 
       <EffectComposer>
-        <RetroEffect colorNum={colorNum} pixelSize={pixelSize} blackLevel={blackLevel} />
+        <RetroEffect colorNum={colorNum} pixelSize={pixelSize} blackLevel={blackLevel} whiteLevel={whiteLevel} />
       </EffectComposer>
 
       <mesh
@@ -312,6 +320,7 @@ export default function Dither({
   colorNum = 4,
   pixelSize = 2,
   blackLevel = 0,
+  whiteLevel = 0.6,
   clearColor = '#000000',
   disableAnimation = false,
   enableMouseInteraction = true,
@@ -344,6 +353,7 @@ export default function Dither({
         colorNum={colorNum}
         pixelSize={pixelSize}
         blackLevel={blackLevel}
+        whiteLevel={whiteLevel}
         disableAnimation={disableAnimation}
         enableMouseInteraction={enableMouseInteraction}
         mouseRadius={mouseRadius}

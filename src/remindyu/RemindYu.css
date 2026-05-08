@@ -1,529 +1,550 @@
 @import url('../css/humanoid.css');
 
 /* ============================================================
-   remind.yu landing page
+   remind.yu — swiss + brutalist redesign
+   off-white bg, one accent, big lowercase, thin grid lines,
+   sparse sections, simple android phone mockups, dither entry.
    ============================================================ */
 
-.remindyu-container {
-  min-height: 100vh;
-  height: auto;
-  width: 100%;
-  background-color: #121212;
-  box-sizing: border-box;
+:root {
+  --rmy-bg:      #cbcbcb;
+  --rmy-ink:     #121212;
+  --rmy-ink-2:   #2a2a2a;
+  --rmy-mute:    #6e6e6e;
+  --rmy-line:    rgba(18, 18, 18, 0.18);
+  --rmy-line-2:  rgba(18, 18, 18, 0.32);
+  --rmy-accent:  #ee2200;
+  --rmy-pad-x:   clamp(1.5rem, 6vw, 6rem);
+  --rmy-sans: 'Satoshi-Variable', -apple-system, BlinkMacSystemFont, "Segoe UI",
+              Roboto, Helvetica, Arial, sans-serif;
+  --rmy-mark: 'Humanoid', var(--rmy-sans);
+}
+
+.rmy {
   position: absolute;
   top: 0;
   left: 0;
+  width: 100%;
+  min-height: 100vh;
+  background: var(--rmy-bg);
+  color: var(--rmy-ink);
+  font-family: var(--rmy-sans);
+  font-feature-settings: "ss01" on, "tnum" on;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
-  overflow-y: auto;
-  color: #cbcbcb;
-  font-family: 'Satoshi-Variable', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* Logo styles now live in YuniverseLogoHeader.css */
+.rmy h1, .rmy h2, .rmy p, .rmy a, .rmy span, .rmy li, .rmy figcaption {
+  text-transform: lowercase;
+}
 
 /* ============================================================
-   Hero
+   Hero — centered, dither above wordmark
    ============================================================ */
 
-.remindyu-hero {
+.rmy-hero {
   position: relative;
   min-height: 100vh;
   width: 100%;
+  box-sizing: border-box;
+  padding: clamp(5rem, 10vh, 8rem) var(--rmy-pad-x) clamp(3rem, 8vh, 6rem);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding-bottom: clamp(3rem, 8vh, 6rem);
-  box-sizing: border-box;
-  overflow: hidden;
+  justify-content: center;
+  text-align: center;
+  border-bottom: 1px solid var(--rmy-line);
 }
 
-/* Circular dither animation — z-index 55 keeps it above the cursor canvas (z-index 50)
-   so the difference-blend cursor does not invert the dither animation */
-.remindyu-dither-inner-circle {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 70%;
-  aspect-ratio: 1;
+/* Caption — leads into the wordmark, fades out before it appears */
+.rmy-caption {
+  font-family: var(--rmy-sans);
+  font-size: clamp(0.85rem, 1.3vw, 1.05rem);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 1.55;
+  color: var(--rmy-ink-2);
+  margin: 0 0 clamp(1.6rem, 3vh, 2.6rem);
+  max-width: 38ch;
+  transition: opacity 0.05s linear;
+}
+
+/* Dither circle — small, sits above the wordmark */
+.rmy-dither {
+  position: relative;
+  width: clamp(180px, 22vmin, 320px);
+  height: clamp(180px, 22vmin, 320px);
   border-radius: 50%;
-  z-index: 2;
+  overflow: hidden;
+  margin: 0 0 clamp(1.6rem, 4vh, 3rem);
   pointer-events: none;
+  background: var(--rmy-bg);
+}
+
+/* Prevent the WebGL canvas from flashing white before the first frame */
+.rmy-dither canvas {
+  background: var(--rmy-bg);
+}
+
+/* Solid cover over the WebGL canvas during the brief window before
+   its first frame paints. Fades out via inline opacity once the
+   dither is guaranteed to be rendering. */
+.rmy-dither__cover {
+  position: absolute;
+  inset: 0;
+  background: var(--rmy-bg);
+  z-index: 3;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.rmy-dither__inner {
+  position: absolute;
+  inset: 15%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.rmy-dither__bg {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--rmy-ink);
+}
+
+.rmy-dither__logo {
+  width: 55%;
+  height: auto;
+  position: relative;
+  z-index: 1;
+}
+
+/* Wordmark */
+.rmy-wordmark-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.rmy-wordmark {
+  font-family: var(--rmy-mark);
+  font-weight: 400;
+  font-size: clamp(3.6rem, 11vw, 11rem);
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  color: var(--rmy-ink);
+  margin: 0 0 0.45em;
+  text-transform: none;
+}
+
+.rmy-lede {
+  font-size: clamp(1.4rem, 3vw, 2.4rem);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  color: var(--rmy-ink);
+  margin: 0 0 0.7em;
+  max-width: 16ch;
+}
+
+.rmy-sub {
+  font-size: clamp(0.95rem, 1.2vw, 1.05rem);
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--rmy-ink-2);
+  margin: 0 0 2.2em;
+  max-width: 42ch;
+}
+
+/* ── CTA ──────────────────────────────────────────────────── */
+.rmy-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8em;
+  padding: 0.85em 1.1em;
+  font-size: clamp(0.85rem, 1.1vw, 0.95rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--rmy-bg);
+  background: var(--rmy-ink);
+  text-decoration: none;
+  border: 1px solid var(--rmy-ink);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.rmy-cta__arrow {
+  display: inline-block;
+  transition: transform 0.25s cubic-bezier(.22,1,.36,1);
+}
+
+.rmy-cta:hover {
+  background: var(--rmy-accent);
+  color: #fff;
+  border-color: var(--rmy-accent);
+}
+
+.rmy-cta:hover .rmy-cta__arrow {
+  transform: translateX(4px);
+}
+
+.rmy-cta--big {
+  padding: 1.1em 1.6em;
+  font-size: clamp(0.95rem, 1.4vw, 1.15rem);
+}
+
+/* ============================================================
+   Generic section
+   ============================================================ */
+
+.rmy-section {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  padding: clamp(5rem, 12vh, 9rem) var(--rmy-pad-x);
+  border-bottom: 1px solid var(--rmy-line);
+}
+
+.rmy-section__num {
+  display: block;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  color: var(--rmy-mute);
+  margin: 0 0 3em;
+  padding-bottom: 0.5em;
+  border-bottom: 1px solid var(--rmy-line);
+  max-width: 20ch;
+}
+
+.rmy-h2 {
+  font-size: clamp(2rem, 5.5vw, 4.6rem);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  color: var(--rmy-ink);
+  margin: 0 0 0.8em;
+  max-width: 18ch;
+}
+
+.rmy-body {
+  font-size: clamp(1rem, 1.3vw, 1.15rem);
+  font-weight: 400;
+  line-height: 1.65;
+  color: var(--rmy-ink-2);
+  max-width: 52ch;
+  margin: 0 0 1.4em;
+}
+
+.rmy-body--quiet {
+  color: var(--rmy-mute);
+}
+
+.rmy-link {
+  display: inline-block;
+  margin-top: 1em;
+  font-size: 0.95rem;
+  color: var(--rmy-ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--rmy-ink);
+  padding-bottom: 0.1em;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.rmy-link:hover {
+  color: var(--rmy-accent);
+  border-color: var(--rmy-accent);
+}
+
+/* ============================================================
+   01 / what it does — phone + nag bubbles
+   ============================================================ */
+
+.rmy-what {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(2rem, 6vw, 6rem);
+  align-items: center;
+}
+
+.rmy-what__copy {
+  min-width: 0;
+}
+
+.rmy-what__stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1.05;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.remindyu-dither-inner-bg {
+.rmy-nag {
   position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: #cbcbcb;
-}
-
-.remindyu-inner-logo {
-  width: 60%;
-  height: auto;
-  pointer-events: none;
-  user-select: none;
-  position: relative;
-  z-index: 1;
-}
-
-.remindyu-dither-circle {
-  position: absolute;
-  left: 50%;
-  /* top = logo clearance (logo top + logo height + 1× logo height padding) + circle radius */
-  top: calc(var(--logo-clearance) + clamp(130px, 19vmin, 260px));
-  transform: translate(-50%, -50%);
-  width: clamp(260px, 38vmin, 520px);
-  height: clamp(260px, 38vmin, 520px);
-  border-radius: 50%;
-  overflow: hidden;
-  z-index: 55;
-  pointer-events: none;
-}
-
-.remindyu-hero-text {
-  position: relative;
-  z-index: 5;
-  text-align: center;
-  width: 100%;
-  /* margin = logo clearance + full circle diameter + breathing room */
-  margin-top: calc(var(--logo-clearance) + clamp(260px, 38vmin, 520px) + 3rem);
-  padding: 0 7vw clamp(1.5rem, 4vh, 3rem);
-  box-sizing: border-box;
-}
-
-.remindyu-app-name {
-  font-family: 'Humanoid', 'Satoshi-Variable', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-weight: normal;
-  font-size: clamp(3rem, 9vw, 8.5rem);
-  letter-spacing: -0.01em;
-  color: #fff;
-  margin: 0 0 0.35em 0;
-  line-height: 1;
-}
-
-.remindyu-tagline {
-  font-size: clamp(0.9rem, 1.5vw, 1.25rem);
-  font-weight: 400;
-  color: #cbcbcb;
-  letter-spacing: 0.04em;
-  margin: 0 0 2rem 0;
-  line-height: 1.5;
-}
-
-/* ── Brutalist store badge ── */
-
-.remindyu-store-badge {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-  border: 2px solid rgba(255,255,255,0.35);
-  border-radius: 0;
-  padding: 0;
-  font-size: clamp(0.7rem, 1.1vw, 0.85rem);
-  font-weight: 700;
-  color: rgba(255,255,255,0.55);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  text-decoration: none;
-  overflow: hidden;
-  cursor: pointer;
-  transition: border-color 0.35s cubic-bezier(.22,1,.36,1),
-              color 0.35s cubic-bezier(.22,1,.36,1);
-}
-
-/* Dither canvas fill */
-.remindyu-store-badge__fill {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
-  pointer-events: none;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-}
-
-/* Label (icon + text) */
-.remindyu-store-badge__label {
-  position: relative;
-  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 0.55em;
-  padding: 0.7em 1.1em;
-  transition: color 0.35s cubic-bezier(.22,1,.36,1);
+  padding: 0.45em 0.7em;
+  font-size: clamp(0.7rem, 1vw, 0.85rem);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--rmy-ink);
+  background: var(--rmy-bg);
+  border: 1px solid var(--rmy-line-2);
+  white-space: nowrap;
+  z-index: 2;
+  pointer-events: none;
+  user-select: none;
 }
 
-.remindyu-store-badge:hover .remindyu-store-badge__label {
-  color: #121212;
+.rmy-nag__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rmy-accent);
+  flex: none;
 }
 
-.remindyu-store-badge__icon {
-  width: 1em;
-  height: 1em;
-  opacity: 0.55;
-  transition: opacity 0.35s cubic-bezier(.22,1,.36,1);
-}
+/* ============================================================
+   Phone mockup (android-ish)
+   ============================================================ */
 
-.remindyu-store-badge:hover .remindyu-store-badge__icon {
-  opacity: 1;
-}
-
-/* Arrow compartment */
-.remindyu-store-badge__arrow {
+.rmy-phone {
   position: relative;
+  width: clamp(180px, 22vw, 280px);
+  aspect-ratio: 9 / 19;
+  border: 1.5px solid var(--rmy-ink);
+  border-radius: 28px;
+  background: var(--rmy-ink);
+  padding: 6px;
+  box-sizing: border-box;
   z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.7em 0.85em;
-  border-left: 2px solid rgba(255,255,255,0.35);
-  font-size: 1.05em;
-  line-height: 1;
-  transition: color 0.35s cubic-bezier(.22,1,.36,1),
-              border-color 0.35s cubic-bezier(.22,1,.36,1),
-              transform 0.35s cubic-bezier(.22,1,.36,1);
 }
 
-.remindyu-store-badge:hover .remindyu-store-badge__arrow {
-  color: #121212;
-  border-color: rgba(0,0,0,0.15);
-  transform: translate(2px, -2px);
+.rmy-phone__notch {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rmy-bg);
+  z-index: 2;
 }
 
-.remindyu-store-badge:hover {
-  border-color: #fff;
-  color: #121212;
-}
-
-/* ============================================================
-   Scroll cue
-   ============================================================ */
-
-.remindyu-scroll-cue {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.4em;
-  margin-top: 2.5rem;
-  opacity: 0.25;
-  pointer-events: none;
-  user-select: none;
-}
-
-.remindyu-scroll-cue__line {
-  width: 1px;
-  height: clamp(2rem, 5vh, 4rem);
-  background: #fff;
-}
-
-.remindyu-scroll-cue__label {
-  font-size: 0.6rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: #fff;
-}
-
-/* ============================================================
-   Features
-   ============================================================ */
-
-.remindyu-features {
+.rmy-phone__screen {
   width: 100%;
-  padding: 0;
-}
-
-.remindyu-feature {
-  width: 100%;
-  box-sizing: border-box;
-  padding: clamp(3.5rem, 7vh, 6rem) 7vw;
-  border-top: 1px solid rgba(255,255,255,0.1);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: auto auto;
-  column-gap: clamp(2rem, 5vw, 5rem);
-  row-gap: 0;
-  align-items: start;
-}
-
-.remindyu-feature__meta {
-  grid-column: 1;
-  grid-row: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.remindyu-feature__number {
-  font-size: clamp(4.5rem, 9vw, 8rem);
-  font-weight: 700;
-  line-height: 0.9;
-  color: #fff;
-  opacity: 0.08;
-  letter-spacing: -0.03em;
-  margin: 0 0 0.15em 0;
-  pointer-events: none;
-  user-select: none;
-  font-variant-numeric: tabular-nums;
-}
-
-.remindyu-feature__name {
-  font-size: clamp(1.6rem, 3.2vw, 3rem);
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: -0.01em;
-  line-height: 1.05;
-  margin: 0 0 0.6em 0;
-}
-
-.remindyu-feature__desc {
-  font-size: clamp(0.9rem, 1.3vw, 1.05rem);
-  font-weight: 400;
-  color: #cbcbcb;
-  line-height: 1.75;
-  max-width: 48ch;
-  margin: 0;
-}
-
-.remindyu-feature__visual {
-  grid-column: 2;
-  grid-row: 1 / 3;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-}
-
-.remindyu-feature__screenshot {
-  width: 100%;
-  max-width: 280px;
-  border-radius: 2.6rem;
+  height: 100%;
   display: block;
-  pointer-events: none;
-  user-select: none;
+  object-fit: cover;
+  border-radius: 22px;
+  background: var(--rmy-bg);
 }
 
 /* ============================================================
-   Privacy callout — inverted panel
+   02 / why it's different — comparison rows
    ============================================================ */
 
-.remindyu-privacy-callout {
+.rmy-why__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rmy-line);
+}
+
+.rmy-why__row {
+  display: grid;
+  grid-template-columns: minmax(11ch, 18ch) 1fr minmax(0, 2fr);
+  align-items: baseline;
+  gap: clamp(1rem, 3vw, 2.5rem);
+  padding: 1.4em 0;
+  border-bottom: 1px solid var(--rmy-line);
+}
+
+.rmy-why__who {
+  font-size: clamp(0.85rem, 1.1vw, 1rem);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--rmy-mute);
+}
+
+.rmy-why__row.is-us .rmy-why__who {
+  color: var(--rmy-accent);
+}
+
+.rmy-why__line {
+  height: 1px;
+  background: var(--rmy-line);
+  align-self: center;
+}
+
+.rmy-why__what {
+  font-size: clamp(1.05rem, 1.7vw, 1.5rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--rmy-ink);
+  line-height: 1.3;
+}
+
+/* ============================================================
+   03 / screenshots
+   ============================================================ */
+
+.rmy-shots__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: clamp(2rem, 4vw, 4rem) clamp(1.5rem, 3vw, 3rem);
+  margin-top: 2rem;
+}
+
+.rmy-shot {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.2rem;
+}
+
+.rmy-shot .rmy-phone {
   width: 100%;
-  box-sizing: border-box;
-  background: #cbcbcb;
-  color: #000;
-  padding: clamp(4rem, 9vh, 8rem) 7vw;
-  border-top: 1px solid rgba(255,255,255,0.1);
+  max-width: 220px;
 }
 
-.remindyu-privacy-callout__eyebrow {
-  font-size: clamp(0.65rem, 1vw, 0.8rem);
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: #fff;
-  margin: 0 0 1.2em 0;
-  mix-blend-mode: difference;
-  position: relative;
-  z-index: 5;
+.rmy-shot__caption {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--rmy-ink-2);
+  line-height: 1.4;
+  max-width: 22ch;
+  padding-top: 0.6em;
+  border-top: 1px solid var(--rmy-line);
+  width: 100%;
 }
 
-.remindyu-privacy-callout__heading {
-  font-size: clamp(2rem, 5vw, 4.5rem);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.05;
-  color: #fff;
-  margin: 0 0 0.7em 0;
-  max-width: 18ch;
-  mix-blend-mode: difference;
-  position: relative;
-  z-index: 5;
+/* ============================================================
+   04 / privacy
+   ============================================================ */
+
+.rmy-privacy__h {
+  max-width: 22ch;
 }
 
-.remindyu-privacy-callout__body {
-  font-size: clamp(0.95rem, 1.4vw, 1.1rem);
+/* ============================================================
+   Final CTA
+   ============================================================ */
+
+.rmy-final {
+  text-align: left;
+  padding-top: clamp(6rem, 14vh, 10rem);
+  padding-bottom: clamp(6rem, 14vh, 10rem);
+}
+
+.rmy-final__h {
+  font-family: var(--rmy-mark);
   font-weight: 400;
-  line-height: 1.75;
-  color: #fff;
-  max-width: 52ch;
-  margin: 0 0 2em 0;
-  mix-blend-mode: difference;
-  position: relative;
-  z-index: 5;
-}
-
-.remindyu-privacy-callout__link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5em;
-  font-size: clamp(0.8rem, 1.1vw, 0.95rem);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #fff;
-  text-decoration: none;
-  border-bottom: 1px solid rgba(255,255,255,0.4);
-  padding-bottom: 0.1em;
-  transition: opacity 0.2s ease;
-  mix-blend-mode: difference;
-  position: relative;
-  z-index: 5;
-}
-
-.remindyu-privacy-callout__link:hover {
-  opacity: 0.55;
-}
-
-.remindyu-privacy-callout__link::after {
-  content: '→';
-  font-style: normal;
+  font-size: clamp(2.5rem, 8vw, 7rem);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  color: var(--rmy-ink);
+  margin: 0 0 1.4em;
+  max-width: 14ch;
+  text-transform: none;
 }
 
 /* ============================================================
    Footer
    ============================================================ */
 
-.remindyu-footer {
-  width: 100%;
-  box-sizing: border-box;
-  background: #cbcbcb;
-  padding: clamp(1.5rem, 4vh, 2.5rem) 7vw;
-  border-top: 1px solid rgba(0,0,0,0.12);
+.rmy-footer {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   flex-wrap: wrap;
   gap: 0.75rem;
+  padding: 1.6rem var(--rmy-pad-x);
+  font-size: 0.82rem;
+  color: var(--rmy-mute);
+  border-top: 1px solid var(--rmy-line);
 }
 
-.remindyu-footer__copy {
-  font-size: clamp(0.7rem, 0.35rem + 1vw, 0.9rem);
-  font-weight: 400;
-  color: #fff;
+.rmy-footer p {
   margin: 0;
-  line-height: 1.4;
-  mix-blend-mode: difference;
-  position: relative;
-  z-index: 5;
 }
 
-.remindyu-footer__links {
-  display: flex;
-  align-items: center;
-  gap: 1.2em;
+.rmy-footer a {
+  color: var(--rmy-mute);
+  text-decoration: none;
+  transition: color 0.2s ease;
 }
 
-.remindyu-footer__link {
-  font-size: clamp(0.7rem, 0.35rem + 1vw, 0.9rem);
-  font-weight: 400;
-  color: #fff;
-  text-decoration: underline;
-  transition: opacity 0.2s ease;
-  mix-blend-mode: difference;
-  position: relative;
-  z-index: 5;
-}
-
-.remindyu-footer__link:hover {
-  opacity: 0.55;
-}
-
-.remindyu-footer__sep {
-  color: #fff;
-  mix-blend-mode: difference;
-  position: relative;
-  z-index: 5;
+.rmy-footer a:hover {
+  color: var(--rmy-ink);
 }
 
 /* ============================================================
-   Responsive — tablet / mobile
+   Responsive
    ============================================================ */
 
 @media (max-width: 900px) {
-  .remindyu-feature {
+  .rmy-what {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
+    gap: clamp(2rem, 8vw, 4rem);
   }
 
-  .remindyu-feature__meta {
-    grid-column: 1;
-    grid-row: 1;
+  .rmy-what__stage {
+    aspect-ratio: 1 / 1;
+    order: 2;
   }
 
-  .remindyu-feature__visual {
-    grid-column: 1;
-    grid-row: 2;
-    justify-content: flex-start;
-    margin-top: 2rem;
+  .rmy-phone {
+    width: clamp(180px, 45vw, 240px);
   }
 
-  .remindyu-feature__screenshot {
+  .rmy-shots__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .rmy-why__row {
+    grid-template-columns: 1fr;
+    gap: 0.4em;
+    padding: 1.2em 0;
+  }
+
+  .rmy-why__line {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .rmy-shots__grid {
+    grid-template-columns: 1fr;
+    gap: 3rem;
+  }
+
+  .rmy-shot .rmy-phone {
     max-width: 200px;
-    border-radius: 1.9rem;
+  }
+
+  .rmy-nag {
+    font-size: 0.65rem;
+    padding: 0.35em 0.55em;
   }
 }
 
-@media (max-width: 768px) {
-  /* Mobile dither: 65vw diameter — top uses --logo-clearance (auto 60vw on mobile) + radius */
-  .remindyu-dither-circle {
-    width: 65vw;
-    height: 65vw;
-    top: calc(var(--logo-clearance) + 32.5vw);
-    left: 50%;
-    transform: translate(-50%, -50%);
-  }
-
-  .remindyu-hero {
-    padding-bottom: clamp(2.5rem, 6vh, 5rem);
-  }
-
-  .remindyu-hero-text {
-    margin-top: calc(var(--logo-clearance) + 65vw + 3rem);
-  }
-
-  .remindyu-feature {
-    padding: clamp(2.5rem, 6vh, 4rem) 7vw;
-  }
-
-  .remindyu-feature__desc {
-    max-width: 100%;
-  }
-
-  .remindyu-footer {
-    flex-direction: column;
-    align-items: flex-start;
+@media (max-width: 420px) {
+  .rmy-nag:nth-child(2),
+  .rmy-nag:nth-child(5) {
+    display: none;
   }
 }
 
-@media (max-width: 480px) {
-  .remindyu-app-name {
-    font-size: clamp(2.5rem, 14vw, 4rem);
-  }
-
-  .remindyu-dither-circle {
-    width: 70vw;
-    height: 70vw;
-    top: calc(var(--logo-clearance) + 35vw);
-  }
-
-  .remindyu-hero-text {
-    margin-top: calc(var(--logo-clearance) + 70vw + 3rem);
-  }
-
-  .remindyu-privacy-callout__heading {
-    max-width: 100%;
-  }
-}
-
-/* Reduced motion */
+/* Reduced motion — skip the dither animation entirely */
 @media (prefers-reduced-motion: reduce) {
-  .remindyu-dither-circle {
+  .rmy-dither {
     display: none;
   }
 }

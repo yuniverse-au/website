@@ -207,14 +207,14 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
 .preload-reveal {
   position: fixed;
   inset: 0;
-  background: #000;
+  background: #cbcbcb;
   z-index: 9999;
   pointer-events: none;
   isolation: isolate;
 
   animation:
-    colorShift 3s ease-in-out 1s forwards,
-    fadeOut    4s ease-in        7s forwards;
+    colorShift 0.4s ease-in-out 0s forwards,
+    fadeOut    1.2s ease-in     0.5s forwards;
 }
 
 .preload-ghost {
@@ -229,7 +229,7 @@ body { background: #000000; font-family: Arial, Helvetica, sans-serif; }
 }
 
 @keyframes colorShift {
-  from { background: #000; }
+  from { background: #cbcbcb; }
   to   { background: #cbcbcb; }
 }
 
