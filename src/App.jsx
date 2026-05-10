@@ -19,7 +19,9 @@ export default function App() {
   });
 
   const [isMobile, setIsMobile] = useState(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
-  const [logoSize, setLogoSize] = useState(isMobile ? "60vw" : "30vw");
+  const [logoSize, setLogoSize] = useState(
+    isMobile ? "clamp(120px, 32vw, 200px)" : "clamp(160px, 18vw, 280px)"
+  );
   const [ditherEnabled, setDitherEnabled] = useState(true);
   const [ditherPaused, setDitherPaused] = useState(false);
   const [isReturnTransition, setIsReturnTransition] = useState(false);
@@ -31,14 +33,103 @@ export default function App() {
   const [isHashTransitioning, setIsHashTransitioning] = useState(false);
   const [blobScale, setBlobScale] = useState(1);
 
-  const colorSteps = isMobile ? 8 : 8;
-  const waveColor = isMobile ? [0.3, 0.3, 0.3] : [0.2, 0.2, 0.2];
+  const [theme, setTheme] = useState("light");
+  const themeAnimatingRef = useRef(false);
+  const themeRef = useRef("light");
+  themeRef.current = theme;
+
+  const themeConfig = {
+    light: { clearColor: "#191919", waveColor: [0.554,  0.554,  0.554 ], blackLevel: 0.0097, whiteLevel: 0.554,  colorSteps: 8, whiteCutoff: 0.35 },
+    dark:  { clearColor: "#cbcbcb", waveColor: [0.554,  0.554,  0.554 ], blackLevel: 0.554,  whiteLevel: 0.0097, colorSteps: 6, whiteCutoff: 0.2 },
+  };
+  const [animatedColorNum, setAnimatedColorNum] = useState(themeConfig.light.colorSteps);
+  const [themeContrast, setThemeContrast] = useState(1);
+  const [blobThemeScale, setBlobThemeScale] = useState(1); // 1 at rest, dips to 0 mid-theme-swap
+  const activeTheme = themeConfig[theme];
+  const waveColor = activeTheme.waveColor;
   const blobPixelSize = 1;
   const blobBaseZIndex = 55;
   const blobHomeZIndex = 8; // Keep blob beneath home logo + side links
   const blobMaskZIndex = 30; // Ensure mask layers sit above the blob during transitions
-  const homeBlobColor = "#000000";
-  const hashBlobColor = "#cbcbcb";
+  const homeBlobColor = theme === "dark" ? "#c4c4c4" : "#191919";
+  const hashBlobColor = "#c4c4c4";
+
+  const startThemeChange = () => {
+    if (themeAnimatingRef.current) return;
+    themeAnimatingRef.current = true;
+
+    const fromTheme = themeRef.current;
+    const toTheme   = fromTheme === "dark" ? "light" : "dark";
+    const fromSteps = themeConfig[fromTheme].colorSteps;
+    const toSteps   = themeConfig[toTheme].colorSteps;
+
+    const t0 = performance.now();
+    const totalMs    = 2000;
+    const swapAtMs   = 1000;  // theme flip + colorNum jump (0 → HIGH_START)
+    const HIGH_START = 16;
+    let swapped = false;
+
+    const tick = (now) => {
+      const e = now - t0;
+      let cn;
+      let blobScaleVal;
+      let contrastVal;
+      if (e < swapAtMs) {
+        // first half: fromSteps → 0, ease-in (slow leave from resting, zip through 0)
+        const t = e / swapAtMs;
+        cn = fromSteps - fromSteps * (t * t);
+        // blobs shrink 1 → 0 with same ease-in shape so they vanish into the swap moment
+        blobScaleVal = 1 - t * t;
+        // contrast fades 1 → 0 alongside the blob shrink so mid-tones return for the colorNum sweep
+        contrastVal = 1 - t * t;
+      } else if (e < totalMs) {
+        // second half: HIGH_START → toSteps, strong ease-out (zip through 16, lingering settle into rest)
+        const t = (e - swapAtMs) / (totalMs - swapAtMs);
+        const oneMinusT = 1 - t;
+        cn = HIGH_START + (toSteps - HIGH_START) * (1 - oneMinusT * oneMinusT * oneMinusT * oneMinusT);
+        // blobs grow 0 → 1 with the same quartic ease-out
+        blobScaleVal = 1 - oneMinusT * oneMinusT * oneMinusT * oneMinusT;
+        contrastVal = 1 - oneMinusT * oneMinusT * oneMinusT * oneMinusT;
+      } else {
+        cn = toSteps;
+        blobScaleVal = 1;
+        contrastVal = 1;
+      }
+      setAnimatedColorNum(cn);
+      setBlobThemeScale(blobScaleVal);
+      setThemeContrast(contrastVal);
+
+      if (!swapped && e >= swapAtMs) {
+        swapped = true;
+        setTheme(toTheme);
+      }
+
+      if (e < totalMs) {
+        requestAnimationFrame(tick);
+      } else {
+        setAnimatedColorNum(toSteps);
+        setBlobThemeScale(1);
+        setThemeContrast(1);
+        themeAnimatingRef.current = false;
+      }
+    };
+    requestAnimationFrame(tick);
+  };
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== "t" && e.key !== "T") return;
+      const tag = e.target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || e.target?.isContentEditable) return;
+      startThemeChange();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    document.body.style.background = theme === "light" ? "#191919" : "#c4c4c4";
+  }, [theme]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -89,7 +180,7 @@ export default function App() {
 
       const newIsMobile = width <= 768;
       setIsMobile(newIsMobile);
-      setLogoSize(newIsMobile ? "60vw" : "30vw");
+      setLogoSize(newIsMobile ? "clamp(120px, 32vw, 200px)" : "clamp(160px, 18vw, 280px)");
 
       const minHeight = 600;
       const maxHeight = 2160;
@@ -112,7 +203,7 @@ export default function App() {
   }, []);
 
   const baseSizes = isMobile ? [900, 675, 450, 270] : [800, 550, 400, 280, 120];
-  const scaledSizes = baseSizes.map(size => Math.round(size * blobScale));
+  const scaledSizes = baseSizes.map(size => Math.round(size * blobScale * blobThemeScale));
   const scaledBlur = Math.round((isMobile ? 65 : 82) * blobScale);
   const hashPageContentRef = useRef(null);
   const hashPageBackgroundRef = useRef(null);
@@ -206,6 +297,12 @@ export default function App() {
     const ghost = real.cloneNode(true);
     ghost.removeAttribute("id");
     ghost.setAttribute("class", "preload-logo-svg");
+    // Strip cloned inline sizing so the ghost fills its host (which is itself sized to
+    // the real logo's bounding rect via place()). Without this, the inline width from
+    // the cloned style attr would override .preload-logo-svg's width:100% and the ghost
+    // would size independently of the host.
+    ghost.style.removeProperty("width");
+    ghost.style.removeProperty("height");
     ghost.style.color = "#000";
     ghost.style.filter = "none";
     ghost.style.mixBlendMode = "normal";
@@ -283,7 +380,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app ${isHashPage ? "app--hash" : ""} ${isHashTransitioning ? "app--hash-transition" : ""}`}>
+    <div className={`app ${isHashPage ? "app--hash" : ""} ${isHashTransitioning ? "app--hash-transition" : ""}`} data-theme={theme}>
       <div className="preload-reveal" aria-hidden="true">
         <div className="preload-ghost" />
         <h3 className="legal">© 2026 Yuniverse Australia. All rights reserved.</h3>
@@ -312,10 +409,15 @@ export default function App() {
             disableAnimation={ditherPaused}
             enableMouseInteraction={false}
             mouseRadius={0.3}
-            colorNum={colorSteps}
+            colorNum={animatedColorNum}
             waveAmplitude={0.3}
             waveFrequency={0.8}
             waveSpeed={0.04}
+            blackLevel={activeTheme.blackLevel}
+            whiteLevel={activeTheme.whiteLevel}
+            whiteCutoff={activeTheme.whiteCutoff}
+            clearColor={activeTheme.clearColor}
+            contrastAmount={themeContrast}
           />
         </div>
       )}
@@ -385,7 +487,7 @@ export default function App() {
             setIsHashPage(false);
           }}
           mode="mask"
-          maskColor="#000000"
+          maskColor="#191919"
           clipTargetRef={hashPageContentRef}
           additionalClipRefs={additionalMaskRefs}
           homeClipRefs={homeMaskRefs}
@@ -418,6 +520,16 @@ export default function App() {
       >
         revolves around you.
       </h3>
+
+      <button
+        type="button"
+        className={`theme-toggle theme-toggle--${theme}`}
+        onClick={startThemeChange}
+        aria-label="Toggle theme"
+      >
+        <span className="theme-toggle__hint" aria-hidden="true">t</span>
+        <span className="theme-toggle__circle" aria-hidden="true" />
+      </button>
     </div>
   );
 }

@@ -1750,6 +1750,10 @@ export default function BlobCursorDither({
       if (isBlobDisabled.current) {
         return;
       }
+
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
       
       // Check if blobs are still animating by comparing current vs previous positions
       let maxMovement = 0;

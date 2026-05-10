@@ -1,10 +1,11 @@
 /* eslint-disable react/no-unknown-property */
-import { useRef, useEffect, forwardRef } from 'react';
+import { useRef, useEffect, useMemo, forwardRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { EffectComposer, wrapEffect } from '@react-three/postprocessing';
 import { Effect } from 'postprocessing';
 import * as THREE from 'three';
 
+import { deviceTier, getEffectiveDPR } from './deviceTier';
 import './App.css';
 
 const waveVertexShader = `
@@ -18,7 +19,7 @@ void main() {
 }
 `;
 
-const waveFragmentShader = `
+const buildWaveFragmentShader = (octaves) => `
 precision highp float;
 uniform vec2 resolution;
 uniform float time;
@@ -29,6 +30,7 @@ uniform vec3 waveColor;
 uniform vec2 mousePos;
 uniform int enableMouseInteraction;
 uniform float mouseRadius;
+uniform float contrastAmount;
 
 vec4 mod289(vec4 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
 vec4 permute(vec4 x) { return mod289(((x * 34.0) + 1.0) * x); }
@@ -63,7 +65,7 @@ float cnoise(vec2 P) {
   return 2.3 * mix(n_x.x, n_x.y, fade_xy.y);
 }
 
-const int OCTAVES = 3;
+const int OCTAVES = ${octaves};
 float fbm(vec2 p) {
   float value = 0.0;
   float amp = 1.0;
@@ -78,7 +80,7 @@ float fbm(vec2 p) {
 
 float pattern(vec2 p) {
   vec2 p2 = p - time * waveSpeed;
-  return fbm(p + fbm(p2)); 
+  return fbm(p + fbm(p2));
 }
 
 void main() {
@@ -93,7 +95,10 @@ void main() {
     float effect = 1.0 - smoothstep(0.0, mouseRadius, dist);
     f += 0.5 * effect;
   }
-    vec3 col = mix(vec3(1.0), waveColor, f);
+  f = pow(clamp(f, 0.0, 1.0), 1.8);
+  float fSharp = smoothstep(0.2, 0.6, f);
+  f = mix(f, fSharp, contrastAmount);
+  vec3 col = mix(vec3(1.0), waveColor, f);
   gl_FragColor = vec4(col, 1.0);
 }
 `;
@@ -104,6 +109,7 @@ uniform float colorNum;
 uniform float pixelSize;
 uniform float blackLevel;
 uniform float whiteLevel;
+uniform float whiteCutoff;
 const float bayerMatrix8x8[64] = float[64](
   0.0/64.0, 48.0/64.0, 12.0/64.0, 60.0/64.0,  3.0/64.0, 51.0/64.0, 15.0/64.0, 63.0/64.0,
   32.0/64.0,16.0/64.0, 44.0/64.0, 28.0/64.0, 35.0/64.0,19.0/64.0, 47.0/64.0, 31.0/64.0,
@@ -116,33 +122,23 @@ const float bayerMatrix8x8[64] = float[64](
 );
 
 vec3 dither(vec2 uv, vec3 color) {
-  float whiteCutoff    = 0.2;  // higher = fewer light pixels promoted
-  float thresholdShift = -2.8; // negative = a few more light speckles
+  float thresholdShift = -2.8;
 
   color = clamp(color, 0.0, 1.0);
 
-  // Bayer threshold per pixel
   vec2 scaledCoord = floor(uv * resolution / pixelSize);
   int x = int(mod(scaledCoord.x, 8.0));
   int y = int(mod(scaledCoord.y, 8.0));
   float threshold = bayerMatrix8x8[y * 8 + x] + thresholdShift;
 
-  // Local cutoff modulated by the Bayer value
   float q = max(2.0, colorNum - 1.0);
   float stepSize = 1.0 / q;
   float localCut = clamp(whiteCutoff - threshold * stepSize, 0.0, 1.0);
 
-  // Binary mask: 0 = black, 1 = "white" (we'll remap white to grey)
   vec3 mask = step(vec3(localCut), color);
 
-  // Map 0 -> black, 1 -> grey (whiteLevel)
   return mix(vec3(blackLevel), vec3(whiteLevel), mask);
 }
-
-
-
-
-
 
 void mainImage(in vec4 inputColor, in vec2 uv, out vec4 outputColor) {
   vec2 normalizedPixelSize = pixelSize / resolution;
@@ -156,10 +152,11 @@ void mainImage(in vec4 inputColor, in vec2 uv, out vec4 outputColor) {
 class RetroEffectImpl extends Effect {
   constructor() {
     const uniforms = new Map([
-      ['colorNum',   new THREE.Uniform(4.0)],
-      ['pixelSize',  new THREE.Uniform(2.0)],
-      ['blackLevel', new THREE.Uniform(0.0)],
-      ['whiteLevel', new THREE.Uniform(0.6)],
+      ['colorNum',    new THREE.Uniform(4.0)],
+      ['pixelSize',   new THREE.Uniform(2.0)],
+      ['blackLevel',  new THREE.Uniform(0.0)],
+      ['whiteLevel',  new THREE.Uniform(0.6)],
+      ['whiteCutoff', new THREE.Uniform(0.2)],
     ]);
     super('RetroEffect', ditherFragmentShader, { uniforms });
     this.uniforms = uniforms;
@@ -188,13 +185,19 @@ class RetroEffectImpl extends Effect {
   get whiteLevel() {
     return this.uniforms.get('whiteLevel').value;
   }
+  set whiteCutoff(v) {
+    this.uniforms.get('whiteCutoff').value = v;
+  }
+  get whiteCutoff() {
+    return this.uniforms.get('whiteCutoff').value;
+  }
 }
 
 const WrappedRetro = wrapEffect(RetroEffectImpl);
 
 const RetroEffect = forwardRef((props, ref) => {
-  const { colorNum, pixelSize, blackLevel, whiteLevel } = props;
-  return <WrappedRetro ref={ref} colorNum={colorNum} pixelSize={pixelSize} blackLevel={blackLevel} whiteLevel={whiteLevel} />;
+  const { colorNum, pixelSize, blackLevel, whiteLevel, whiteCutoff } = props;
+  return <WrappedRetro ref={ref} colorNum={colorNum} pixelSize={pixelSize} blackLevel={blackLevel} whiteLevel={whiteLevel} whiteCutoff={whiteCutoff} />;
 });
 RetroEffect.displayName = 'RetroEffect';
 
@@ -208,13 +211,17 @@ function DitheredWaves({
   pixelSize,
   blackLevel,
   whiteLevel,
+  whiteCutoff,
   disableAnimation,
   enableMouseInteraction,
-  mouseRadius
+  mouseRadius,
+  contrastAmount
 }) {
   const mesh = useRef(null);
   const mouseRef = useRef(new THREE.Vector2());
-  const { viewport, size, gl } = useThree();
+  const { viewport, size, gl, invalidate } = useThree();
+
+  const waveFragmentShader = useMemo(() => buildWaveFragmentShader(deviceTier.octaves), []);
 
   const waveUniformsRef = useRef({
     time: new THREE.Uniform(0),
@@ -225,7 +232,8 @@ function DitheredWaves({
     waveColor: new THREE.Uniform(new THREE.Color(...waveColor)),
     mousePos: new THREE.Uniform(new THREE.Vector2(0, 0)),
     enableMouseInteraction: new THREE.Uniform(enableMouseInteraction ? 1 : 0),
-    mouseRadius: new THREE.Uniform(mouseRadius)
+    mouseRadius: new THREE.Uniform(mouseRadius),
+    contrastAmount: new THREE.Uniform(contrastAmount)
   });
   const pauseStartRef = useRef(null);
   const pausedOffsetRef = useRef(0);
@@ -240,8 +248,20 @@ function DitheredWaves({
     }
   }, [size, gl]);
 
+  // Pause GPU work entirely while the tab is hidden. With frameloop="always"
+  // browsers throttle rAF when hidden, but switching to demand-mode means zero
+  // draw calls until visible again.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') invalidate();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [invalidate]);
+
   const prevColor = useRef([...waveColor]);
   useFrame(({ clock }) => {
+    if (document.visibilityState === 'hidden') return;
     const u = waveUniformsRef.current;
     const elapsed = clock.getElapsedTime();
 
@@ -270,6 +290,7 @@ function DitheredWaves({
 
     u.enableMouseInteraction.value = enableMouseInteraction ? 1 : 0;
     u.mouseRadius.value = mouseRadius;
+    if (u.contrastAmount.value !== contrastAmount) u.contrastAmount.value = contrastAmount;
 
     if (enableMouseInteraction) {
       u.mousePos.value.copy(mouseRef.current);
@@ -295,18 +316,20 @@ function DitheredWaves({
       </mesh>
 
       <EffectComposer>
-        <RetroEffect colorNum={colorNum} pixelSize={pixelSize} blackLevel={blackLevel} whiteLevel={whiteLevel} />
+        <RetroEffect colorNum={colorNum} pixelSize={pixelSize} blackLevel={blackLevel} whiteLevel={whiteLevel} whiteCutoff={whiteCutoff} />
       </EffectComposer>
 
-      <mesh
-        onPointerMove={handlePointerMove}
-        position={[0, 0, 0.01]}
-        scale={[viewport.width, viewport.height, 1]}
-        visible={false}
-      >
-        <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial transparent opacity={0} />
-      </mesh>
+      {enableMouseInteraction && (
+        <mesh
+          onPointerMove={handlePointerMove}
+          position={[0, 0, 0.01]}
+          scale={[viewport.width, viewport.height, 1]}
+          visible={false}
+        >
+          <planeGeometry args={[1, 1]} />
+          <meshBasicMaterial transparent opacity={0} />
+        </mesh>
+      )}
     </>
   );
 }
@@ -321,21 +344,23 @@ export default function Dither({
   pixelSize = 2,
   blackLevel = 0,
   whiteLevel = 0.6,
+  whiteCutoff = 0.2,
   clearColor = '#000000',
   disableAnimation = false,
   enableMouseInteraction = true,
-  mouseRadius = 1
+  mouseRadius = 1,
+  contrastAmount = 1
 }) {
-  // Cap DPR to reduce rendering load on high-DPI devices
-  const cappedDPR = Math.min(window.devicePixelRatio, 2);
-  
+  // Cap DPR by tier — fragment shader cost scales with rendered pixel count.
+  const cappedDPR = getEffectiveDPR();
+
   return (
     <Canvas
       className="dither-container"
       camera={{ position: [0, 0, 6] }}
       dpr={cappedDPR}
-      gl={{ 
-        antialias: false, // Disable antialiasing for better performance
+      gl={{
+        antialias: false,
         alpha: false,
         stencil: false,
         depth: false,
@@ -354,9 +379,11 @@ export default function Dither({
         pixelSize={pixelSize}
         blackLevel={blackLevel}
         whiteLevel={whiteLevel}
+        whiteCutoff={whiteCutoff}
         disableAnimation={disableAnimation}
         enableMouseInteraction={enableMouseInteraction}
         mouseRadius={mouseRadius}
+        contrastAmount={contrastAmount}
       />
     </Canvas>
   );
