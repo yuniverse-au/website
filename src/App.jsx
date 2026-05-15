@@ -40,7 +40,7 @@ export default function App() {
 
   const themeConfig = {
     light: { clearColor: "#191919", waveColor: [0.554,  0.554,  0.554 ], blackLevel: 0.0097, whiteLevel: 0.554,  colorSteps: 8, whiteCutoff: 0.35 },
-    dark:  { clearColor: "#cbcbcb", waveColor: [0.554,  0.554,  0.554 ], blackLevel: 0.554,  whiteLevel: 0.0097, colorSteps: 6, whiteCutoff: 0.2 },
+    dark:  { clearColor: "#c4c4c4", waveColor: [0.554,  0.554,  0.554 ], blackLevel: 0.554,  whiteLevel: 0.0097, colorSteps: 6, whiteCutoff: 0.2 },
   };
   const [animatedColorNum, setAnimatedColorNum] = useState(themeConfig.light.colorSteps);
   const [themeContrast, setThemeContrast] = useState(1);
@@ -117,7 +117,10 @@ export default function App() {
     requestAnimationFrame(tick);
   };
 
+  const isRemindYuRoute = currentPath.startsWith("/remind.yu");
+
   useEffect(() => {
+    if (isRemindYuRoute) return;
     const onKey = (e) => {
       if (e.key !== "t" && e.key !== "T") return;
       const tag = e.target?.tagName;
@@ -126,11 +129,12 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [isRemindYuRoute]);
 
   useEffect(() => {
+    if (isRemindYuRoute) return;
     document.body.style.background = theme === "light" ? "#191919" : "#c4c4c4";
-  }, [theme]);
+  }, [theme, isRemindYuRoute]);
 
   useEffect(() => {
     const handlePopState = () => {

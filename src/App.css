@@ -429,8 +429,9 @@ h1, h2, h3 {
   cursor: pointer;
   font-family: inherit;
   color: #ffffff;
-  opacity: 0.55;
-  transition: opacity 0.25s ease, color 0.25s ease;
+  mix-blend-mode: difference;
+  opacity: 0.7;
+  transition: opacity 0.25s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -438,10 +439,6 @@ h1, h2, h3 {
 .theme-toggle:focus-visible {
   opacity: 1;
   outline: none;
-}
-
-.theme-toggle--light {
-  color: #191919;
 }
 
 .theme-toggle__hint {
