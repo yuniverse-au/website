@@ -47,7 +47,8 @@ export default function App() {
   const [blobThemeScale, setBlobThemeScale] = useState(1); // 1 at rest, dips to 0 mid-theme-swap
   const activeTheme = themeConfig[theme];
   const waveColor = activeTheme.waveColor;
-  const blobPixelSize = 1;
+  // Match the Dither background's default pixelSize so both grids align.
+  const blobPixelSize = 2;
   const blobBaseZIndex = 55;
   const blobHomeZIndex = 8; // Keep blob beneath home logo + side links
   const blobMaskZIndex = 30; // Ensure mask layers sit above the blob during transitions
@@ -204,7 +205,6 @@ export default function App() {
 
   const baseSizes = isMobile ? [900, 675, 450, 270] : [800, 550, 400, 280, 120];
   const scaledSizes = baseSizes.map(size => Math.round(size * blobScale * blobThemeScale));
-  const scaledBlur = Math.round((isMobile ? 65 : 82) * blobScale);
   const hashPageContentRef = useRef(null);
   const hashPageBackgroundRef = useRef(null);
   const homeMaskContentRef = useRef(null);
@@ -427,7 +427,6 @@ export default function App() {
           trailCount={isMobile ? 4 : 5}
           sizes={scaledSizes}
           opacities={isMobile ? [1, 0.85, 0.5, 0.35] : [1, 0.9, 0.55, 0.4, 0.3]}
-          blurPx={scaledBlur}
           threshold={0.28}
           color={homeBlobColor}
           hashColor={hashBlobColor}

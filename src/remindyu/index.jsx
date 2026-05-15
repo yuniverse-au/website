@@ -51,8 +51,19 @@ export default function RemindYu() {
   const [ditherMounted, setDitherMounted] = useState(false);
   const [ditherCovered, setDitherCovered] = useState(true);
 
-  /* refs for imperative entry-animation control (avoid per-frame re-renders) */
-  const ditherWaveColorRef = useRef([-80, -80, -80]);
+  /* Dither animation values — driven from rAF by the intro timeline.
+     Match the home page's resting "dark theme" dither pattern at rest. */
+  const REST_COLOR_NUM       = 6;
+  const REST_CONTRAST        = 1;
+  const REST_BLACK_LEVEL     = 0.554;     // linear value that sRGB-encodes to #c4c4c4 — matches --rmy-bg on screen
+  const REST_WHITE_LEVEL     = 0.0097;
+  const HIGH_COLOR_NUM       = 16;        // colorNum target for the shrink phase — drives the shader's highEndWash so localCut saturates to 0 and all pixels resolve to whiteLevel
+  const [animatedColorNum, setAnimatedColorNum] = useState(0);
+  const [animatedContrast, setAnimatedContrast] = useState(0);
+  const [animatedBlackLevel] = useState(REST_BLACK_LEVEL);
+  const [animatedWhiteLevel] = useState(REST_WHITE_LEVEL);
+  const introSettledRef = useRef(false);
+
   const innerBgRef         = useRef(null);
   const captionRef         = useRef(null);
   const ledeRef            = useRef(null);
@@ -62,33 +73,35 @@ export default function RemindYu() {
 
   useEffect(() => {
     /* ── Timeline (ms from page load) ──
-       0 ─ 3000   dither wave rises (-80 → 0.6 ease-in-out)
-       300 ─ 2000 caption fades in (during the rise)
-       3000       inner circle becomes visible
-       3000 ─ 4500 caption holds
+       Validation pass — only the dither reveal runs, then holds at rest:
+       0 ─ 1000   Dither "blooms in" — time-reversal of the old Phase B
+                              (ease-out quadratic).
+                              colorNum    0  → 6
+                              contrast    0  → 1
+                              blackLevel 0.07 → 0.554
+                              whiteLevel held at rest
+                  Inner circle stays hidden for this pass.
+       300  ─ 2000 caption fades in
        4500 ─ 5300 caption fades out
-       5300       wordmark splits in (single React render)
+       5300        wordmark splits in
        5800 ─ 6800 lede / sub / cta fade in
-       6800 ─ 11800 stage (phone + nags) fade in (slow)
-       4500 ─ 9500 dither wave falls (0.6 → -0.1 ease-out quintic)
+       6800 ─ 8800 stage (phone + nags) fade in
     */
     const totalMs    = 12000;
-    const riseMs     = 3000;
-    const captionInStartMs = 300;
-    const captionInEndMs   = 2000;
-    const captionOutStartMs = 4500;
-    const captionOutEndMs   = 5300;
-    const wordmarkAtMs      = 5300;
-    const bodyInStartMs     = 5800;
-    const bodyInEndMs       = 6800;
-    const stageInStartMs    = 6800;
-    const stageInEndMs      = 8800;
-    const fallStartMs       = 4500;
-    const fallEndMs         = 9500;
-
-    const start = -80;
-    const peak  =  0.6;
-    const final = -0.1;
+    const introStartMs    = 1000;     // 1 s hold on the initial c4c4c4 disc before the ramp begins
+    const introDurationMs = 3000;     // Phase A+B — 3 s linear ramp
+    const introEndMs      = introStartMs + introDurationMs;     // 4000 ms — colorNum 0 → HIGH, contrast 0 → rest
+    const bloomBackEndMs  = 6000;     // Phase C — 2 s, colorNum HIGH → rest, "light" patches grow back
+    const innerOnMs       = introEndMs;     // inner dark anchor circle appears when the shrink finishes
+    const captionInStartMs  = 300;
+    const captionInEndMs    = 1500;
+    const captionOutStartMs = 2200;
+    const captionOutEndMs   = 3000;
+    const wordmarkAtMs      = 3000;
+    const bodyInStartMs     = 3500;
+    const bodyInEndMs       = 4500;
+    const stageInStartMs    = 4500;
+    const stageInEndMs      = 6500;
 
     const t0 = performance.now();
     let rafId;
@@ -101,23 +114,30 @@ export default function RemindYu() {
     const animate = (now) => {
       const elapsed = Math.min(now - t0, totalMs);
 
-      /* dither wave value */
-      let waveVal;
-      if (elapsed <= riseMs) {
-        const t = elapsed / riseMs;
-        const eased = t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
-        waveVal = lerp(start, peak, eased);
-      } else if (elapsed <= fallStartMs) {
-        waveVal = peak;
-      } else {
-        const t = clamp01((elapsed - fallStartMs) / (fallEndMs - fallStartMs));
-        waveVal = peak + (final - peak) * (1 - Math.pow(1 - t, 5));
+      /* Phase A+B — 1.5 s idle hold, then a single linear ramp 1500 → 5000 ms.
+                     colorNum 0 → HIGH, contrast 0 → rest.
+         Phase C  — reverse the shrink linearly over 5000 → 7000 ms.
+                     colorNum HIGH → rest, contrast pinned at rest. */
+      if (elapsed <= introStartMs) {
+        // hold initial state — nothing to write
+      } else if (elapsed <= introEndMs) {
+        const t = (elapsed - introStartMs) / introDurationMs;
+        setAnimatedColorNum(lerp(0, HIGH_COLOR_NUM, t));
+        setAnimatedContrast(lerp(0, REST_CONTRAST, t));
+      } else if (elapsed <= bloomBackEndMs) {
+        const t = (elapsed - introEndMs) / (bloomBackEndMs - introEndMs);
+        setAnimatedColorNum(lerp(HIGH_COLOR_NUM, REST_COLOR_NUM, t));
+        setAnimatedContrast(REST_CONTRAST);
+      } else if (!introSettledRef.current) {
+        introSettledRef.current = true;
+        setAnimatedColorNum(REST_COLOR_NUM);
+        setAnimatedContrast(REST_CONTRAST);
       }
-      ditherWaveColorRef.current = [waveVal, waveVal, waveVal];
 
-      /* inner circle visible once dither has fully risen */
+      /* inner dark anchor circle fades in over ~300 ms once the shrink completes */
       if (innerBgRef.current) {
-        innerBgRef.current.style.opacity = elapsed >= riseMs ? 1 : 0;
+        const innerFadeMs = 300;
+        innerBgRef.current.style.opacity = clamp01((elapsed - innerOnMs) / innerFadeMs);
       }
 
       /* caption: fade in, hold, fade out */
@@ -152,7 +172,7 @@ export default function RemindYu() {
 
     rafId = requestAnimationFrame(animate);
 
-    /* Defer Dither mount by two frames so the page bg (#cbcbcb) paints
+    /* Defer Dither mount by two frames so the page bg (#c4c4c4) paints
        before the WebGL canvas appears, then hold an overlay over the
        canvas for ~400ms so any pre-first-frame flash is hidden. */
     let mountFrame1, mountFrame2;
@@ -186,8 +206,8 @@ export default function RemindYu() {
     if (root) root.style.overflow = "visible";
     if (body) body.style.overflow = "visible";
     if (html) html.style.overflow = "visible";
-    if (body) body.style.background = "#cbcbcb";
-    if (html) html.style.background = "#cbcbcb";
+    if (body) body.style.background = "#c4c4c4";
+    if (html) html.style.background = "#c4c4c4";
 
     return () => {
       document.title = "The Yuniverse.";
@@ -224,17 +244,18 @@ export default function RemindYu() {
           />
           {ditherMounted && (
             <Dither
-              waveColor={[-80, -80, -80]}
-              waveColorRef={ditherWaveColorRef}
-              colorNum={8}
+              waveColor={[0.554, 0.554, 0.554]}
+              colorNum={animatedColorNum}
               waveAmplitude={0.3}
               waveFrequency={0.8}
               waveSpeed={0.04}
               enableMouseInteraction={false}
-              pixelSize={4}
-              blackLevel={0.5972}
-              whiteLevel={0.00605}
-              clearColor="#cbcbcb"
+              pixelSize={2}
+              blackLevel={animatedBlackLevel}
+              whiteLevel={animatedWhiteLevel}
+              whiteCutoff={0.2}
+              contrastAmount={animatedContrast}
+              clearColor="#c4c4c4"
             />
           )}
           <div className="rmy-dither__inner">
@@ -244,7 +265,6 @@ export default function RemindYu() {
               aria-hidden="true"
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 314.59 377.53"
-              fill="#cbcbcb"
             >
               <path d="M278.03,221.41l5.83-84.49-41.61-75.24-52.3-21.2V14.97l-14.97-14.97h-35.39l-14.97,14.97v25.52l-52.3,21.2-41.61,75.24,5.83,84.49L0,262.72l15.17,56.86h284.26l15.17-56.86-36.55-41.31ZM166.44,35.59h-18.29v-6.68l3.9-3.9h10.5l3.9,3.9v6.68Z"/>
               <polygon points="117.54 329.77 120.02 358.53 140.37 377.53 174.22 377.53 194.57 358.53 197.04 329.77 117.54 329.77"/>

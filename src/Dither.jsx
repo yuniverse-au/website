@@ -133,7 +133,11 @@ vec3 dither(vec2 uv, vec3 color) {
 
   float q = max(2.0, colorNum - 1.0);
   float stepSize = 1.0 / q;
-  float localCut = clamp(whiteCutoff - threshold * stepSize, 0.0, 1.0);
+  // High-end wash: once colorNum climbs past the resting range, drive localCut
+  // toward 0 so the mask saturates to whiteLevel and the wave silhouette
+  // disappears (mirrors the low-end clamp-to-1 / all-black behavior at colorNum=0).
+  float highEndWash = max(0.0, colorNum - 9.0) * 0.06;
+  float localCut = clamp(whiteCutoff - threshold * stepSize - highEndWash, 0.0, 1.0);
 
   vec3 mask = step(vec3(localCut), color);
 
