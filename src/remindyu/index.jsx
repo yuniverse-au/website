@@ -24,7 +24,7 @@ const WHY = [
   ["a reminder app", "drops what you ignored yesterday."],
   ["remind.yu",      "stacks it onto today."],
   ["a reminder app", "knows clock times."],
-  ["remind.yu",      "knows before breakfast, after dinner, and 30-minutes after you've done your ."],
+  ["remind.yu",      "knows before breakfast, after dinner, and 30-minutes after you're done watering the plants."],
 ];
 
 const SHOTS = [
