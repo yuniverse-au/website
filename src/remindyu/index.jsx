@@ -326,7 +326,7 @@ export default function RemindYu() {
             it for before breakfast. it fires. it fires again at the
             interval you chose. it doesn't stop until you tap done.
           </p>
-          <p className="rmy-body rmy-body">
+          <p className="rmy-body">
             skip it today, it comes back tomorrow. unfinished reminders
             from yesterday stack onto today until you clear them. nothing
             quietly disappears.
