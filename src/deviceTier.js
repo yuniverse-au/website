@@ -15,5 +15,7 @@ const detect = () => {
 
 export const deviceTier = detect();
 
-export const getEffectiveDPR = () =>
-  Math.min(window.devicePixelRatio || 1, deviceTier.dprCap);
+export const getEffectiveDPR = () => {
+  if (typeof window === 'undefined') return 1;
+  return Math.min(window.devicePixelRatio || 1, deviceTier.dprCap);
+};

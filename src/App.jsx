@@ -33,16 +33,19 @@ export default function App() {
   const [isHashTransitioning, setIsHashTransitioning] = useState(false);
   const [blobScale, setBlobScale] = useState(1);
 
-  const [theme, setTheme] = useState("light");
+  const [theme, setTheme] = useState("ink");
   const themeAnimatingRef = useRef(false);
-  const themeRef = useRef("light");
+  const themeRef = useRef("ink");
   themeRef.current = theme;
 
+  // Keys describe the dither ink color, not the background:
+  //   ink   — light dither dots on a dark background
+  //   paper — dark dither dots on a light background
   const themeConfig = {
-    light: { clearColor: "#191919", waveColor: [0.554,  0.554,  0.554 ], blackLevel: 0.0097, whiteLevel: 0.554,  colorSteps: 8, whiteCutoff: 0.35 },
-    dark:  { clearColor: "#c4c4c4", waveColor: [0.554,  0.554,  0.554 ], blackLevel: 0.554,  whiteLevel: 0.0097, colorSteps: 6, whiteCutoff: 0.2 },
+    ink:   { clearColor: "#191919", waveColor: [0.554,  0.554,  0.554 ], blackLevel: 0.0097, whiteLevel: 0.554,  colorSteps: 8, whiteCutoff: 0.35 },
+    paper: { clearColor: "#c4c4c4", waveColor: [0.554,  0.554,  0.554 ], blackLevel: 0.554,  whiteLevel: 0.0097, colorSteps: 6, whiteCutoff: 0.2 },
   };
-  const [animatedColorNum, setAnimatedColorNum] = useState(themeConfig.light.colorSteps);
+  const [animatedColorNum, setAnimatedColorNum] = useState(themeConfig.ink.colorSteps);
   const [themeContrast, setThemeContrast] = useState(1);
   const [blobThemeScale, setBlobThemeScale] = useState(1); // 1 at rest, dips to 0 mid-theme-swap
   const activeTheme = themeConfig[theme];
@@ -52,7 +55,7 @@ export default function App() {
   const blobBaseZIndex = 55;
   const blobHomeZIndex = 8; // Keep blob beneath home logo + side links
   const blobMaskZIndex = 30; // Ensure mask layers sit above the blob during transitions
-  const homeBlobColor = theme === "dark" ? "#c4c4c4" : "#191919";
+  const homeBlobColor = theme === "paper" ? "#c4c4c4" : "#191919";
   const hashBlobColor = "#c4c4c4";
 
   const startThemeChange = () => {
@@ -60,7 +63,7 @@ export default function App() {
     themeAnimatingRef.current = true;
 
     const fromTheme = themeRef.current;
-    const toTheme   = fromTheme === "dark" ? "light" : "dark";
+    const toTheme   = fromTheme === "paper" ? "ink" : "paper";
     const fromSteps = themeConfig[fromTheme].colorSteps;
     const toSteps   = themeConfig[toTheme].colorSteps;
 
@@ -133,7 +136,7 @@ export default function App() {
 
   useEffect(() => {
     if (isRemindYuRoute) return;
-    document.body.style.background = theme === "light" ? "#191919" : "#c4c4c4";
+    document.body.style.background = theme === "ink" ? "#191919" : "#c4c4c4";
   }, [theme, isRemindYuRoute]);
 
   useEffect(() => {
