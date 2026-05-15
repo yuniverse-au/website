@@ -252,9 +252,8 @@ function DitheredWaves({
     }
   }, [size, gl]);
 
-  // Pause GPU work entirely while the tab is hidden. With frameloop="always"
-  // browsers throttle rAF when hidden, but switching to demand-mode means zero
-  // draw calls until visible again.
+  // When the tab becomes visible again, request a fresh render so the scene
+  // updates promptly after any browser rAF throttling while hidden.
   useEffect(() => {
     const onVisibility = () => {
       if (document.visibilityState === 'visible') invalidate();
