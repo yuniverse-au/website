@@ -328,18 +328,6 @@
   z-index: 1;
 }
 
-.rmy-phone__notch {
-  position: absolute;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--rmy-bg);
-  z-index: 2;
-}
-
 .rmy-phone__screen {
   width: 100%;
   height: 100%;
