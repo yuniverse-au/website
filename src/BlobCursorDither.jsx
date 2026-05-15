@@ -1,36 +1,182 @@
 import React, { useEffect, useRef, useCallback, useMemo } from "react";
 import gsap from "gsap";
+import { getEffectiveDPR } from "./deviceTier";
 
-const BAYER_8 = [
-  [0,32,8,40,2,34,10,42],
-  [48,16,56,24,50,18,58,26],
-  [12,44,4,36,14,46,6,38],
-  [60,28,52,20,62,30,54,22],
-  [3,35,11,43,1,33,9,41],
-  [51,19,59,27,49,17,57,25],
-  [15,47,7,39,13,45,5,37],
-  [63,31,55,23,61,29,53,21],
-];
+// WebGL2 dither program. Replaces the previous CPU pipeline (getImageData +
+// per-cell JS Bayer loop + Path2D fill), which scaled poorly on weak hardware.
+// The blob radial gradients are still composed on a 2D canvas (drawCan); this
+// shader takes that as a texture and produces the dithered output directly.
+const BLOB_VS = `#version 300 es
+in vec2 aPos;
+void main() { gl_Position = vec4(aPos, 0.0, 1.0); }
+`;
 
-// Pre-normalize Bayer to [0,1]
-const BAYER_8_NORM = BAYER_8.map(row => row.map(v => v / 64));
+const BLOB_FS = `#version 300 es
+precision mediump float;
+out vec4 outColor;
+uniform sampler2D uSrc;
+uniform vec2 uResolution;
+uniform vec3 uColor;
+uniform float uPixelSize;
+uniform float uThreshold;
+uniform float uWhiteCutoff;
+uniform float uThresholdShift;
+uniform float uColorNum;
+
+const float bayer[64] = float[64](
+  0.0/64.0, 32.0/64.0,  8.0/64.0, 40.0/64.0,  2.0/64.0, 34.0/64.0, 10.0/64.0, 42.0/64.0,
+  48.0/64.0,16.0/64.0, 56.0/64.0, 24.0/64.0, 50.0/64.0, 18.0/64.0, 58.0/64.0, 26.0/64.0,
+  12.0/64.0,44.0/64.0,  4.0/64.0, 36.0/64.0, 14.0/64.0, 46.0/64.0,  6.0/64.0, 38.0/64.0,
+  60.0/64.0,28.0/64.0, 52.0/64.0, 20.0/64.0, 62.0/64.0, 30.0/64.0, 54.0/64.0, 22.0/64.0,
+  3.0/64.0, 35.0/64.0, 11.0/64.0, 43.0/64.0,  1.0/64.0, 33.0/64.0,  9.0/64.0, 41.0/64.0,
+  51.0/64.0,19.0/64.0, 59.0/64.0, 27.0/64.0, 49.0/64.0, 17.0/64.0, 57.0/64.0, 25.0/64.0,
+  15.0/64.0,47.0/64.0,  7.0/64.0, 39.0/64.0, 13.0/64.0, 45.0/64.0,  5.0/64.0, 37.0/64.0,
+  63.0/64.0,31.0/64.0, 55.0/64.0, 23.0/64.0, 61.0/64.0, 29.0/64.0, 53.0/64.0, 21.0/64.0
+);
+
+void main() {
+  vec2 cell = floor(gl_FragCoord.xy / uPixelSize);
+  vec2 cellCenter = cell * uPixelSize + uPixelSize * 0.5;
+  // gl_FragCoord origin is bottom-left, but the source canvas is top-left, so flip Y.
+  vec2 uv = vec2(cellCenter.x / uResolution.x, 1.0 - cellCenter.y / uResolution.y);
+  float a = texture(uSrc, uv).a;
+
+  float stepped = a >= uThreshold ? (a - uThreshold) / (1.0 - uThreshold) : 0.0;
+
+  int bx = int(mod(cell.x, 8.0));
+  int by = int(mod(cell.y, 8.0));
+  float bv = bayer[by * 8 + bx];
+
+  float q = max(2.0, uColorNum - 1.0);
+  float stepSize = 1.0 / q;
+  float localCut = clamp(uWhiteCutoff - (bv + uThresholdShift) * stepSize, 0.0, 1.0);
+
+  if (stepped < localCut) {
+    outColor = vec4(0.0, 0.0, 0.0, 0.0);
+    return;
+  }
+  outColor = vec4(uColor, 1.0);
+}
+`;
+
+function compileShader(gl, type, src) {
+  const sh = gl.createShader(type);
+  gl.shaderSource(sh, src);
+  gl.compileShader(sh);
+  if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+    console.warn("Blob dither shader compile error:", gl.getShaderInfoLog(sh));
+    gl.deleteShader(sh);
+    return null;
+  }
+  return sh;
+}
+
+function createBlobDitherGL(canvas) {
+  const gl = canvas.getContext("webgl2", {
+    alpha: true,
+    antialias: false,
+    depth: false,
+    stencil: false,
+    desynchronized: true,
+    powerPreference: "high-performance"
+  });
+  if (!gl) return null;
+
+  const vs = compileShader(gl, gl.VERTEX_SHADER, BLOB_VS);
+  const fs = compileShader(gl, gl.FRAGMENT_SHADER, BLOB_FS);
+  if (!vs || !fs) return null;
+  const prog = gl.createProgram();
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  // Bind attribute location before linking (location 0).
+  gl.bindAttribLocation(prog, 0, "aPos");
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    console.warn("Blob dither program link error:", gl.getProgramInfoLog(prog));
+    return null;
+  }
+  gl.deleteShader(vs);
+  gl.deleteShader(fs);
+
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  const vbo = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  // Single oversized triangle covering the screen.
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  gl.bindVertexArray(null);
+
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  // LINEAR so the downsampled source canvas (35% scale) returns a smooth alpha
+  // gradient when sampled at the cell centers; the dither itself is the only
+  // thing producing the visible blockiness.
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  const uSrc = gl.getUniformLocation(prog, "uSrc");
+  const uResolution = gl.getUniformLocation(prog, "uResolution");
+  const uColor = gl.getUniformLocation(prog, "uColor");
+  const uPixelSize = gl.getUniformLocation(prog, "uPixelSize");
+  const uThreshold = gl.getUniformLocation(prog, "uThreshold");
+  const uWhiteCutoff = gl.getUniformLocation(prog, "uWhiteCutoff");
+  const uThresholdShift = gl.getUniformLocation(prog, "uThresholdShift");
+  const uColorNum = gl.getUniformLocation(prog, "uColorNum");
+
+  // Clear immediately so the canvas presents as transparent before the first
+  // loop frame paints anything — otherwise some browsers composite the
+  // freshly-allocated drawing buffer as opaque black.
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(0, 0, 0, 0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+
+  return {
+    gl,
+    clear() {
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    },
+    render(source, params) {
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(prog);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+      gl.uniform1i(uSrc, 0);
+      gl.uniform2f(uResolution, canvas.width, canvas.height);
+      gl.uniform3f(uColor, params.color[0] / 255, params.color[1] / 255, params.color[2] / 255);
+      gl.uniform1f(uPixelSize, params.pixelSize);
+      gl.uniform1f(uThreshold, params.threshold);
+      gl.uniform1f(uWhiteCutoff, params.whiteCutoff);
+      gl.uniform1f(uThresholdShift, params.thresholdShift);
+      gl.uniform1f(uColorNum, params.colorNum);
+      gl.bindVertexArray(vao);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.bindVertexArray(null);
+    }
+  };
+}
 
 // Keep padding configurable in one place so the canvas can draw past the viewport edge
 const CANVAS_PADDING = 150;
 const MAX_AUTO_RESOLUTION = 8;
 const AUTO_RESOLUTION_STEP = 0.5;
-const BLUR_MIN_SCALE = 0.35;
-const BLUR_STEP_DOWN = 0.15;
-const BLUR_STEP_UP = 0.1;
-const BLUR_ENABLED = false; // Disable blur to reduce CPU load
 const HASH_IDLE_Z_INDEX = 2; // Set z-index for hash overlay when idle
 const SKIP_DITHER_WHEN_IDLE = true; // Skip dithering entirely when blob is settled and no input
 const IDLE_DITHER_SKIP_THRESHOLD = 200; // ms of no movement before skipping dither
-const AGGRESSIVE_GRID_REDUCTION = true; // Use 4x larger pixels when idle to reduce getImageData overhead
+const IDLE_LEAD_ONLY = true; // When idle, draw only the lead blob (skip trails)
 const SKIP_MAGNETISM_ON_HIGH_VELOCITY = true; // Skip link detection on fast movement
 const HIGH_VELOCITY_THRESHOLD = 150; // pixels/frame - above this, skip magnetism checks
 const REDUCE_TRAILS_ON_HIGH_VELOCITY = true; // Skip rendering trail blobs when moving fast
-const FRAME_SKIP_ON_HIGH_VELOCITY = false; // Skip every other frame when very fast (aggressive)
 
 const hexToRgb = (hex) => {
   if (typeof hex !== "string") {
@@ -68,7 +214,6 @@ export default function BlobCursorDither({
   slowDuration = 0.3,
   fastEase = "power3.out",
   slowEase = "power1.out",
-  blurPx = 30,
   threshold = 0.35,
   color = "#000000",
   hashColor = "#ffffff",
@@ -97,11 +242,10 @@ export default function BlobCursorDither({
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const drawCanRef = useRef(null);
-  const blurCanRef = useRef(null);
   const drawCtxRef = useRef(null);
-  const blurCtxRef = useRef(null);
-  // Reduce DPR further for better performance - cap at 1.5x
-  const DPRRef = useRef(Math.min(1.5, Math.max(1, window.devicePixelRatio || 1)));
+  // Use the same DPR cap as the background dither so cell sizes line up.
+  const DPRRef = useRef(getEffectiveDPR());
+  const glRef = useRef(null);
   const maskColorRef = useRef(maskColor);
   const isMaskMode = mode === "mask";
   const maskActiveRef = useRef(isMaskMode && maskActivation === "always");
@@ -226,7 +370,7 @@ export default function BlobCursorDither({
           window.location.href = target;
         }
       }
-    } catch (err) {
+    } catch {
       window.location.href = target;
     }
 
@@ -365,7 +509,6 @@ export default function BlobCursorDither({
   const logoElements = useRef([]);
   const magnetState = useRef({ active: false, type: null });
   const currentSizeMultiplier = useRef(1);
-  const targetBlobSize = useRef(0); // Track target size for dynamic scaling
   const magnetStrength = 120; // Distance within which magnetism activates (increased from 80)
 
   // Expansion animation state
@@ -381,8 +524,6 @@ export default function BlobCursorDither({
   const temporarilyReenabled = useRef(false);
   const slowFrameDebtRef = useRef(0);
   const fastFrameStreakRef = useRef(0);
-  const blurScaleRef = useRef(1);
-  const blurScaleTween = useRef(null);
   const clipPathCacheRef = useRef("none");
   const isCursorFrozen = useRef(false);
   const latestPointerRef = useRef({ x: 0, y: 0 });
@@ -561,8 +702,7 @@ export default function BlobCursorDither({
   const momentumAnimationRef = useRef(null);
 
   const resize = useCallback(() => {
-    // Cap DPR more aggressively for performance
-    const DPR = Math.min(1.5, Math.max(1, window.devicePixelRatio || 1));
+    const DPR = getEffectiveDPR();
     DPRRef.current = DPR;
 
     const c = canvasRef.current;
@@ -579,23 +719,14 @@ export default function BlobCursorDither({
     c.style.left = `-${padding}px`;
     c.style.top = `-${padding}px`;
 
-  // offscreen buffers - use SMALLER resolution for intermediate processing
-  // Even more aggressive downsampling for better performance
-  const blurScale = 0.35; // Render intermediate buffer at 35% resolution
+    // Offscreen draw canvas at 35% resolution. The blob radial gradients are
+    // composed here in 2D, then this canvas is uploaded as a texture for the
+    // GL dither pass — sampling the smaller source is plenty for the dither.
+    const drawScale = 0.35;
     const drawCan = drawCanRef.current || (drawCanRef.current = document.createElement("canvas"));
-    drawCan.width = Math.floor(c.width * blurScale);
-    drawCan.height = Math.floor(c.height * blurScale);
-    drawCtxRef.current = drawCan.getContext("2d", { willReadFrequently: true, alpha: true });
-
-    if (BLUR_ENABLED) {
-      const blurCan = blurCanRef.current || (blurCanRef.current = document.createElement("canvas"));
-      blurCan.width = Math.floor(c.width * blurScale);
-      blurCan.height = Math.floor(c.height * blurScale);
-      blurCtxRef.current = blurCan.getContext("2d", { willReadFrequently: true, alpha: true });
-    } else {
-      blurCanRef.current = drawCanRef.current;
-      blurCtxRef.current = drawCtxRef.current;
-    }
+    drawCan.width = Math.floor(c.width * drawScale);
+    drawCan.height = Math.floor(c.height * drawScale);
+    drawCtxRef.current = drawCan.getContext("2d", { alpha: true });
   }, []);
 
   const disableBlob = useCallback((options = {}) => {
@@ -611,7 +742,6 @@ export default function BlobCursorDither({
     gsap.killTweensOf(blobOpacity);
     gsap.killTweensOf(resolutionMultiplier);
     gsap.killTweensOf(autoResolutionMultiplier);
-    gsap.killTweensOf(blurScaleRef);
     maskSizeTweenRef.current?.kill();
     maskSizeTweenRef.current = null;
     maskSizeMultiplierRef.current = 1;
@@ -619,21 +749,14 @@ export default function BlobCursorDither({
     resolutionTween.current = null;
     autoResolutionTween.current?.kill();
     autoResolutionTween.current = null;
-    blurScaleTween.current?.kill();
-    blurScaleTween.current = null;
     blobOpacity.current = 0;
     resolutionMultiplier.current = 1;
     autoResolutionMultiplier.current = 1;
-    blurScaleRef.current = 1;
     slowFrameDebtRef.current = 0;
     fastFrameStreakRef.current = 0;
     isCursorFrozen.current = false;
 
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext("2d");
-      ctx?.clearRect(0, 0, canvas.width, canvas.height);
-    }
+    glRef.current?.clear();
   }, []);
 
   const fadeOutBlobs = useCallback(() => {
@@ -726,14 +849,11 @@ export default function BlobCursorDither({
     gsap.killTweensOf(blobOpacity);
     gsap.killTweensOf(resolutionMultiplier);
     gsap.killTweensOf(autoResolutionMultiplier);
-    gsap.killTweensOf(blurScaleRef);
 
     resolutionTween.current?.kill();
     resolutionTween.current = null;
     autoResolutionTween.current?.kill();
     autoResolutionTween.current = null;
-    blurScaleTween.current?.kill();
-    blurScaleTween.current = null;
     maskSizeTweenRef.current?.kill();
     maskSizeTweenRef.current = null;
     maskSizeMultiplierRef.current = 1;
@@ -743,7 +863,6 @@ export default function BlobCursorDither({
     blobOpacity.current = 0;
     resolutionMultiplier.current = 1;
     autoResolutionMultiplier.current = 1;
-    blurScaleRef.current = 1;
     slowFrameDebtRef.current = 0;
     fastFrameStreakRef.current = 0;
     isCursorFrozen.current = false;
@@ -1026,7 +1145,7 @@ export default function BlobCursorDither({
     fadeOutBlobs();
   }, [fadeOutBlobs, setBlobTargetPosition]);
 
-  const onTouchEnd = useCallback((e) => {
+  const onTouchEnd = useCallback(() => {
     isTouchingRef.current = false;
     lastTouchEndTimeRef.current = performance.now();
 
@@ -1101,12 +1220,8 @@ export default function BlobCursorDither({
       resolutionTween.current = null;
       autoResolutionTween.current?.kill();
       autoResolutionTween.current = null;
-      blurScaleTween.current?.kill();
-      blurScaleTween.current = null;
-      gsap.killTweensOf(blurScaleRef);
       resolutionMultiplier.current = 1;
       autoResolutionMultiplier.current = 1;
-      blurScaleRef.current = 1;
       slowFrameDebtRef.current = 0;
       fastFrameStreakRef.current = 0;
     } else {
@@ -1397,7 +1512,7 @@ export default function BlobCursorDither({
         });
       }
     });
-  }, [sizes, onExpansionComplete, onExpansionStart, blurPx, zIndex, fadeOutBlobs, disableBlob, setMaskActive, forEachMaskTarget, normalizeHashValue, setActiveMaskGroup, resetBlobZIndex, computeFullscreenMultiplier, getLatestViewportPointer, scaledToViewport]);
+  }, [sizes, onExpansionComplete, onExpansionStart, zIndex, fadeOutBlobs, disableBlob, setMaskActive, forEachMaskTarget, normalizeHashValue, setActiveMaskGroup, resetBlobZIndex, computeFullscreenMultiplier, getLatestViewportPointer, scaledToViewport]);
 
   // Handle clicking on the logo to return to home (remove hash) with a mirrored transition
   const handleLogoClick = useCallback((e) => {
@@ -1428,12 +1543,8 @@ export default function BlobCursorDither({
       resolutionTween.current = null;
       autoResolutionTween.current?.kill();
       autoResolutionTween.current = null;
-      blurScaleTween.current?.kill();
-      blurScaleTween.current = null;
-      gsap.killTweensOf(blurScaleRef);
       resolutionMultiplier.current = 1;
       autoResolutionMultiplier.current = 1;
-      blurScaleRef.current = 1;
       slowFrameDebtRef.current = 0;
       fastFrameStreakRef.current = 0;
     } else {
@@ -1565,12 +1676,9 @@ export default function BlobCursorDither({
       resolutionTween.current = null;
       autoResolutionTween.current?.kill();
       autoResolutionTween.current = null;
-      blurScaleTween.current?.kill();
-      blurScaleTween.current = null;
 
       resolutionMultiplier.current = 1;
       autoResolutionMultiplier.current = 1;
-      blurScaleRef.current = 1;
       slowFrameDebtRef.current = 0;
       fastFrameStreakRef.current = 0;
 
@@ -1663,7 +1771,7 @@ export default function BlobCursorDither({
       document.body.style.backgroundColor = '';
       beginShrink();
     });
-  }, [sizes, blurPx, maskZIndex, homeZIndex, isMaskMode, maskActivation, onReturnStart, onReturnComplete, setActiveMaskGroup, setMaskActive, forEachMaskTarget, setBlobTargetPosition, resetBlobZIndex, restoreHomeContent, executePendingNavigation, computeFullscreenMultiplier, revealHomeLayerDuringReturn, getLatestViewportPointer, scaledToViewport]);
+  }, [sizes, maskZIndex, homeZIndex, isMaskMode, maskActivation, onReturnStart, onReturnComplete, setActiveMaskGroup, setMaskActive, forEachMaskTarget, setBlobTargetPosition, resetBlobZIndex, restoreHomeContent, executePendingNavigation, computeFullscreenMultiplier, revealHomeLayerDuringReturn, getLatestViewportPointer, scaledToViewport]);
 
   useEffect(() => {
     resize();
@@ -1725,13 +1833,15 @@ export default function BlobCursorDither({
     });
 
     const c = canvasRef.current;
-    const outCtx = c.getContext("2d", { alpha: true, desynchronized: true });
-    outCtx.imageSmoothingEnabled = false;
+    if (!glRef.current) glRef.current = createBlobDitherGL(c);
+    const blobGL = glRef.current;
+    if (!blobGL) {
+      // WebGL2 unavailable — bail out cleanly. The blob is decorative.
+      return () => {};
+    }
 
     const drawCtx = () => drawCtxRef.current;
-    const blurCtx = () => blurCtxRef.current;
     const drawCan = () => drawCanRef.current;
-    const blurCan = () => blurCanRef.current;
 
     let raf = 0;
     let lastMoveTime = performance.now();
@@ -1748,6 +1858,10 @@ export default function BlobCursorDither({
       raf = requestAnimationFrame(loop);
 
       if (isBlobDisabled.current) {
+        return;
+      }
+
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
         return;
       }
       
@@ -1798,28 +1912,15 @@ export default function BlobCursorDither({
       const renderStartTime = performance.now();
 
       const DPR = DPRRef.current;
-      const baseGrid = Math.max(1, Math.round(pixelSize * DPR));
-      // When idle, use 4x larger pixels to massively reduce getImageData overhead
-      // Also increase grid on high velocity movement for performance
-      const idleGridMultiplier = (isIdle && AGGRESSIVE_GRID_REDUCTION) ? 4 : 1;
-      const velocityGridMultiplier = (isHighVelocityRef.current && REDUCE_TRAILS_ON_HIGH_VELOCITY) ? 2 : 1;
-      const grid = baseGrid * idleGridMultiplier * velocityGridMultiplier;
-      const q = Math.max(2, colorNum - 1);
-      const stepSize = 1 / q;
+      const dctx = drawCtx();
+      const dcan = drawCan();
+      const drawScale = dcan.width / c.width;
 
-  const dctx = drawCtx();
-  const dcan = drawCan();
+      dctx.clearRect(0, 0, dcan.width, dcan.height);
 
-  // Calculate scale factor (since draw canvas is smaller)
-  const drawScale = dcan.width / c.width;
-
-  dctx.clearRect(0, 0, dcan.width, dcan.height);
-
-  const blurRadiusScale = BLUR_ENABLED ? 0.75 + 0.25 * blurScaleRef.current : 1;
       let activeTrailCount = trailCount;
-      // Reduce trail count on high velocity to save gradient rendering overhead
       if (isHighVelocityRef.current && REDUCE_TRAILS_ON_HIGH_VELOCITY) {
-        activeTrailCount = Math.max(1, Math.ceil(trailCount * 0.5)); // Use only ~50% of trails
+        activeTrailCount = Math.max(1, Math.ceil(trailCount * 0.5));
       }
       if (autoResolutionMultiplier.current >= 4 && trailCount > 3) {
         activeTrailCount = Math.min(activeTrailCount, trailCount - 1);
@@ -1827,52 +1928,26 @@ export default function BlobCursorDither({
       if (autoResolutionMultiplier.current >= 6 && trailCount > 2) {
         activeTrailCount = Math.min(activeTrailCount, trailCount - 2);
       }
-      const sizesForBounds = sizes.slice(0, activeTrailCount);
-      const maxSizeForBounds = sizesForBounds.length ? Math.max(...sizesForBounds) : Math.max(...sizes);
-      const maxR = maxSizeForBounds * DPR * currentSizeMultiplier.current * blurRadiusScale;
 
-      // Performance optimization: when expanding to huge size, reduce quality temporarily
-      // But keep it smoother during expansion animation by using less aggressive downsampling
-      const rawMultiplier = currentSizeMultiplier.current;
-      const isHugeExpansion = rawMultiplier > 10;
-      const combinedResolutionMultiplier = Math.max(1, resolutionMultiplier.current, autoResolutionMultiplier.current);
-      let renderGrid = grid * combinedResolutionMultiplier;
+      // Compose blob radial gradients onto the small 2D draw canvas. The GL
+      // dither pass below uses this canvas as a texture.
+      dctx.globalCompositeOperation = "source-over";
+      const trailsToRender = (isIdle && IDLE_LEAD_ONLY) ? 1 : activeTrailCount;
 
-      if (isExpanding.current) {
-        // Ensure we never go above our targeted degradation bands during the swell
-        if (rawMultiplier < 2.5) {
-          renderGrid = Math.max(renderGrid, grid * 4);
-        } else if (rawMultiplier < 10) {
-          renderGrid = Math.max(renderGrid, grid * 6);
-        } else {
-          renderGrid = Math.max(renderGrid, grid * 8);
-        }
-      } else if (isHugeExpansion) {
-        renderGrid = Math.max(renderGrid, grid * 2);
-      }
-      
-      // Optimize: batch drawing operations
-      dctx.globalCompositeOperation = 'source-over';
-      
-      // When idle, only draw the lead blob to save gradient creation overhead
-      const trailsToRender = (isIdle && AGGRESSIVE_GRID_REDUCTION) ? 1 : activeTrailCount;
-      
-      // Draw blobs on the smaller canvas
       for (let i = 0; i < trailCount; i++) {
         if (i >= trailsToRender) break;
         const p = points.current[i];
         if (!p || p.x < -9000) continue;
-  const baseSize = sizes[i] || sizes[sizes.length - 1];
-  const R = baseSize * DPR * drawScale * 0.5 * currentSizeMultiplier.current * blurRadiusScale;
-  const scaledX = p.x * drawScale;
-  const scaledY = p.y * drawScale;
-        
-        // Apply both the individual opacity and the transition opacity
-        // On high velocity, reduce opacity of trailing blobs to blur the effect naturally
+        const baseSize = sizes[i] || sizes[sizes.length - 1];
+        const R = baseSize * DPR * drawScale * 0.5 * currentSizeMultiplier.current;
+        const scaledX = p.x * drawScale;
+        const scaledY = p.y * drawScale;
+
+        // Fade trailing blobs at high velocity so motion reads as a soft trail
+        // instead of a jittery stack.
         const velocityOpacityMultiplier = isHighVelocityRef.current && i > 0 ? 0.5 : 1;
         dctx.globalAlpha = (opacities[i] ?? 1) * blobOpacity.current * velocityOpacityMultiplier;
-        
-        // Simplified gradient for better performance
+
         const grad = dctx.createRadialGradient(scaledX, scaledY, 0, scaledX, scaledY, R);
         grad.addColorStop(0, "rgba(0,0,0,1)");
         grad.addColorStop(1, "rgba(0,0,0,0)");
@@ -1881,100 +1956,35 @@ export default function BlobCursorDither({
         dctx.arc(scaledX, scaledY, R, 0, Math.PI * 2);
         dctx.fill();
       }
-      
+
       dctx.globalAlpha = 1;
 
-      const dynamicBlurPx = BLUR_ENABLED ? blurPx * blurScaleRef.current : 0;
-      const shouldBlur = BLUR_ENABLED && !isHugeExpansion && dynamicBlurPx >= 0.75;
+      const cssScale = 1 / DPR;
+      const primaryMaskTarget = getPrimaryMaskTarget();
+      const shouldUpdateCircleClip = maskActive && primaryMaskTarget;
+      const canvasRect = shouldUpdateCircleClip ? c.getBoundingClientRect() : null;
 
-      let sampleCtx = dctx;
-      let sampleCan = dcan;
-      let sampleScale = drawScale;
-
-      if (shouldBlur) {
-        const bctx = blurCtx();
-        const bcan = blurCan();
-        bctx.clearRect(0, 0, bcan.width, bcan.height);
-        bctx.filter = `blur(${dynamicBlurPx * DPR * drawScale}px)`;
-        bctx.drawImage(dcan, 0, 0);
-        bctx.filter = "none";
-        sampleCtx = bctx;
-        sampleCan = bcan;
-        sampleScale = bcan.width / c.width;
-      }
-
-      // 3) Calculate bounds for sampling (on full-res canvas)
-  const relevantPoints = points.current.slice(0, activeTrailCount);
-  const pointsForBounds = relevantPoints.length ? relevantPoints : points.current;
-  
-  // Optimize: avoid spread operator + map, use imperative loop instead
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (let i = 0; i < pointsForBounds.length; i++) {
-    const p = pointsForBounds[i];
-    if (p.x < minX) minX = p.x;
-    if (p.x > maxX) maxX = p.x;
-    if (p.y < minY) minY = p.y;
-    if (p.y > maxY) maxY = p.y;
-  }
-  
-  minX = Math.max(0, minX - maxR);
-  maxX = Math.min(c.width, maxX + maxR);
-  minY = Math.max(0, minY - maxR);
-  maxY = Math.min(c.height, maxY + maxR);
-      
-      const startX = Math.floor(minX / renderGrid) * renderGrid;
-      const endX = Math.ceil(maxX / renderGrid) * renderGrid;
-      const startY = Math.floor(minY / renderGrid) * renderGrid;
-      const endY = Math.ceil(maxY / renderGrid) * renderGrid;
-
-      // Only get image data for the region we need (scaled to blur canvas size)
-  const sampleX = Math.floor(startX * sampleScale);
-  const sampleY = Math.floor(startY * sampleScale);
-  const sampleW = Math.min(sampleCan.width - sampleX, Math.ceil((endX - startX) * sampleScale));
-  const sampleH = Math.min(sampleCan.height - sampleY, Math.ceil((endY - startY) * sampleScale));
-      
-      if (sampleW <= 0 || sampleH <= 0) return;
-      
-  const img = sampleCtx.getImageData(sampleX, sampleY, sampleW, sampleH);
-      const data = img.data;
-      const { r, g, b } = rgb.current;
-
-  const path = new Path2D();
-  const cssScale = 1 / DPR;
-  const primaryMaskTarget = getPrimaryMaskTarget();
-  const shouldUpdateCircleClip = maskActive && primaryMaskTarget;
-  const canvasRect = shouldUpdateCircleClip ? c.getBoundingClientRect() : null;
-      
-      // Process only the bounded region
-      for (let y = startY; y < endY; y += renderGrid) {
-        const gy = (Math.floor(y / renderGrid) & 7);
-        const bayerRow = BAYER_8_NORM[gy];
-        
-        for (let x = startX; x < endX; x += renderGrid) {
-          const gx = (Math.floor(x / renderGrid) & 7);
-          
-          // Map to the sampled region coordinates
-          const localX = Math.floor((x - startX) * sampleScale);
-          const localY = Math.floor((y - startY) * sampleScale);
-          const i = (localY * sampleW + localX) * 4;
-
-          const a = data[i + 3] / 255;
-          const stepped = a >= threshold ? (a - threshold) / (1 - threshold) : 0;
-
-          const bayer = bayerRow[gx];
-          const localCut = Math.min(1, Math.max(0, whiteCutoff - (bayer + thresholdShift) * stepSize));
-          if (stepped >= localCut) {
-            path.rect(x, y, renderGrid, renderGrid);
-          }
-        }
-      }
-      
-      // Draw all rects in one single fill operation
-      outCtx.clearRect(startX, startY, endX - startX, endY - startY);
-      outCtx.globalAlpha = 1;
       const shouldUseMaskColor = maskActive && activeMaskGroupRef.current !== "home";
-      outCtx.fillStyle = shouldUseMaskColor ? maskColorRef.current : `rgb(${r},${g},${b})`;
-      outCtx.fill(path);
+      let fillR, fillG, fillB;
+      if (shouldUseMaskColor) {
+        const m = hexToRgb(maskColorRef.current);
+        fillR = m.r; fillG = m.g; fillB = m.b;
+      } else {
+        const cur = rgb.current;
+        fillR = cur.r; fillG = cur.g; fillB = cur.b;
+      }
+
+      // pixelSize is in device px of the rendered canvas, matching the
+      // background dither's semantics. Both canvases share getEffectiveDPR(),
+      // so the same value yields the same on-screen cell size.
+      blobGL.render(dcan, {
+        color: [fillR, fillG, fillB],
+        pixelSize: Math.max(1, pixelSize),
+        threshold,
+        whiteCutoff,
+        thresholdShift,
+        colorNum
+      });
 
       if (shouldUpdateCircleClip) {
         const lead = points.current[0];
@@ -2058,9 +2068,8 @@ export default function BlobCursorDither({
 
         if (slowFrameDebtRef.current >= frameDebtMax) {
           const resolutionMaxed = autoResolutionMultiplier.current >= MAX_AUTO_RESOLUTION - 0.001;
-          const blurAtFloor = !BLUR_ENABLED || blurScaleRef.current <= BLUR_MIN_SCALE + 0.01;
 
-          if (resolutionMaxed && blurAtFloor && !isFading && !isRecentTouch) {
+          if (resolutionMaxed && !isFading && !isRecentTouch) {
             disableBlob();
             return;
           }
@@ -2069,28 +2078,13 @@ export default function BlobCursorDither({
             const nextMultiplier = Math.min(MAX_AUTO_RESOLUTION, autoResolutionMultiplier.current + AUTO_RESOLUTION_STEP);
             if (nextMultiplier > autoResolutionMultiplier.current + 0.001) {
               autoResolutionTween.current?.kill();
-              autoResolutionTween.current = null;
               autoResolutionTween.current = gsap.to(autoResolutionMultiplier, {
                 current: nextMultiplier,
                 duration: 0.3,
                 ease: "power2.out",
-                onComplete: () => {
-                  autoResolutionTween.current = null;
-                }
+                onComplete: () => { autoResolutionTween.current = null; }
               });
             }
-          }
-
-          if (BLUR_ENABLED && !blurAtFloor) {
-            blurScaleTween.current?.kill();
-            blurScaleTween.current = gsap.to(blurScaleRef, {
-              current: Math.max(BLUR_MIN_SCALE, blurScaleRef.current - BLUR_STEP_DOWN),
-              duration: 0.35,
-              ease: "power2.out",
-              onComplete: () => {
-                blurScaleTween.current = null;
-              }
-            });
           }
 
           slowFrameDebtRef.current = 0;
@@ -2102,28 +2096,13 @@ export default function BlobCursorDither({
             const nextMultiplier = Math.max(1, autoResolutionMultiplier.current - AUTO_RESOLUTION_STEP);
             if (nextMultiplier < autoResolutionMultiplier.current - 0.001) {
               autoResolutionTween.current?.kill();
-              autoResolutionTween.current = null;
               autoResolutionTween.current = gsap.to(autoResolutionMultiplier, {
                 current: nextMultiplier,
                 duration: 0.4,
                 ease: "power2.inOut",
-                onComplete: () => {
-                  autoResolutionTween.current = null;
-                }
+                onComplete: () => { autoResolutionTween.current = null; }
               });
             }
-          }
-
-          if (BLUR_ENABLED && blurScaleRef.current < 1 - 0.01) {
-            blurScaleTween.current?.kill();
-            blurScaleTween.current = gsap.to(blurScaleRef, {
-              current: Math.min(1, blurScaleRef.current + BLUR_STEP_UP),
-              duration: 0.45,
-              ease: "power2.inOut",
-              onComplete: () => {
-                blurScaleTween.current = null;
-              }
-            });
           }
 
           fastFrameStreakRef.current = 0;
@@ -2131,13 +2110,12 @@ export default function BlobCursorDither({
         }
       }
 
-      // Disable the blob if render time becomes extreme when already maxed out and not expanding
+      // Hard kill if a frame blew the budget while we're already maxed out.
       if (
         !isExpanding.current &&
         !isFading &&
         !isRecentTouch &&
         autoResolutionMultiplier.current >= MAX_AUTO_RESOLUTION - 0.001 &&
-        (!BLUR_ENABLED || blurScaleRef.current <= BLUR_MIN_SCALE + 0.01) &&
         frameTime > frameDebtThreshold * 3
       ) {
         disableBlob();
@@ -2250,7 +2228,6 @@ export default function BlobCursorDither({
       document.documentElement.removeEventListener("mouseleave", wrappedOnLeave);
       resolutionTween.current?.kill();
       autoResolutionTween.current?.kill();
-      blurScaleTween.current?.kill();
       maskSizeTweenRef.current?.kill();
       maskSizeTweenRef.current = null;
     };
@@ -2265,7 +2242,6 @@ export default function BlobCursorDither({
         trailCount,
         sizes,
         opacities,
-        blurPx,
         threshold,
         colorNum,
         pixelSize,

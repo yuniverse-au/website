@@ -32,7 +32,6 @@ export default function Privacy() {
 
   const baseSizes = isMobile ? [900, 675, 450, 270] : [800, 550, 400, 280, 120];
   const scaledSizes = baseSizes.map(size => Math.round(size * blobScale));
-  const scaledBlur = Math.round((isMobile ? 65 : 82) * blobScale);
 
   useEffect(() => {
     document.title = 'Privacy Policy - remind.yu';
@@ -67,7 +66,6 @@ export default function Privacy() {
         trailCount={isMobile ? 4 : 5}
         sizes={scaledSizes}
         opacities={isMobile ? [1, 0.85, 0.5, 0.35] : [1, 0.9, 0.55, 0.4, 0.3]}
-        blurPx={scaledBlur}
         threshold={0.28}
         color="#000000"
         logoMagnetism={true}
