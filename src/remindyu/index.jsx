@@ -27,7 +27,7 @@ const CHAIN_NODES = [
 ];
 
 const PRIVACY_ROWS = [
-  { label: "data uploaded",    sub: "when you knew about us",   val: "0 b" },
+  { label: "data uploaded",    sub: "lifetime",   val: "0 b" },
   { label: "servers contacted", sub: "since install",  val: "0" },
   { label: "accounts created", sub: "ever",            val: "0" },
   { label: "ads served",       sub: "per session",     val: "0" },
