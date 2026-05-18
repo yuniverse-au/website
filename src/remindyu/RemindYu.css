@@ -71,11 +71,22 @@
   font-size: var(--rmy-fs-mono-sm);
   letter-spacing: var(--rmy-track-mono);
   color: var(--rmy-on-mute);
-  opacity: 0;
   transition: opacity 0.4s var(--rmy-ease);
 }
 
-.rmy-topbar.is-in { opacity: 1; }
+/* Intro fade — only applied when JS opts in via data-rmy-intro and the
+   user has not requested reduced motion. Default state is visible so
+   the page stays accessible if JS errors or never runs. */
+.rmy[data-rmy-intro="on"] .rmy-topbar,
+.rmy[data-rmy-intro="on"] .rmy-caption,
+.rmy[data-rmy-intro="on"] .rmy-lede,
+.rmy[data-rmy-intro="on"] .rmy-sub,
+.rmy[data-rmy-intro="on"] .rmy-hero .rmy-cta,
+.rmy[data-rmy-intro="on"] .rmy-stage {
+  opacity: 0;
+}
+
+.rmy[data-rmy-intro="on"] .rmy-topbar.is-in { opacity: 1; }
 
 .rmy-topbar__mark {
   display: inline-flex;

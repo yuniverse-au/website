@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Dither from "../Dither";
 import LogoSvg from "../LogoSvg";
 import SplitText from "./SplitText";
@@ -286,6 +286,7 @@ export default function RemindYu() {
   const [animatedContrast, setAnimatedContrast] = useState(0);
   const introSettledRef = useRef(false);
 
+  const rootRef    = useRef(null);
   const innerBgRef = useRef(null);
   const captionRef = useRef(null);
   const ledeRef    = useRef(null);
@@ -294,7 +295,41 @@ export default function RemindYu() {
   const topbarRef  = useRef(null);
   const stageRef   = useRef(null);
 
+  /* Opt into the intro fade-in only if JS reaches this point AND the
+     user has not asked for reduced motion. The relevant elements are
+     visible by default in CSS — they only become hidden once this
+     attribute is set, then the rAF below animates them back in. If
+     the rAF effect never runs (JS error, reduced motion), every
+     section stays accessible. */
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) return;
+    const node = rootRef.current;
+    node?.setAttribute("data-rmy-intro", "on");
+    return () => node?.removeAttribute("data-rmy-intro");
+  }, []);
+
   useEffect(() => {
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+    /* Reduced motion: skip the bloom + body/stage fade entirely.
+       Settle the dither at its resting state, drop the wordmark in
+       immediately, hide the transitional caption, and leave every
+       other element at its CSS default (visible). */
+    if (reduced) {
+      setShowWordmark(true);
+      setAnimatedColorNum(REST_COLOR_NUM);
+      setAnimatedContrast(REST_CONTRAST);
+      introSettledRef.current = true;
+      if (innerBgRef.current) innerBgRef.current.style.opacity = "1";
+      if (captionRef.current) captionRef.current.style.display = "none";
+      if (topbarRef.current) topbarRef.current.classList.add("is-in");
+      return;
+    }
+
     /* Timeline (ms from page load) — intro caption + dither bloom +
        wordmark split-in + body fade, then the rest of the page
        fades in beneath. */
@@ -424,7 +459,7 @@ export default function RemindYu() {
   }, []);
 
   return (
-    <div className="rmy">
+    <div ref={rootRef} className="rmy">
       {/* ── Top bar ───────────────────────────────────────────── */}
       <header ref={topbarRef} className="rmy-topbar">
         <div className="rmy-topbar__mark">
@@ -443,7 +478,7 @@ export default function RemindYu() {
 
       {/* ── Hero ──────────────────────────────────────────────── */}
       <section className="rmy-hero" id="top">
-        <p ref={captionRef} className="rmy-caption" style={{ opacity: 0 }}>
+        <p ref={captionRef} className="rmy-caption">
           an app that's designed to&hellip;
         </p>
 
@@ -503,10 +538,10 @@ export default function RemindYu() {
           )}
         </div>
 
-        <p ref={ledeRef} className="rmy-lede" style={{ opacity: 0 }}>
+        <p ref={ledeRef} className="rmy-lede">
           it nags you. so you never forget.
         </p>
-        <p ref={subRef} className="rmy-sub" style={{ opacity: 0 }}>
+        <p ref={subRef} className="rmy-sub">
           free, private, on-device. designed to repeat itself
           until the things you said you'd do, get done.
         </p>
@@ -516,7 +551,6 @@ export default function RemindYu() {
           href={PLAY_URL}
           target="_blank"
           rel="noopener noreferrer"
-          style={{ opacity: 0 }}
         >
           <span className="rmy-cta__label">get it on google play</span>
           <span className="rmy-cta__arrow" aria-hidden="true">→</span>
@@ -524,7 +558,7 @@ export default function RemindYu() {
       </section>
 
       {/* ── Everything below the hero fades in once the intro settles ── */}
-      <div ref={stageRef} style={{ opacity: 0 }}>
+      <div ref={stageRef} className="rmy-stage">
 
         {/* 01 · the nag */}
         <section className="rmy-section">
