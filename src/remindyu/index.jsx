@@ -535,7 +535,7 @@ export default function RemindYu() {
           <div className="rmy-demo">
             <div className="rmy-demo__copy">
               <h2>
-                fires on schedule. <em>swipe doesn't matter.</em>
+                fires on schedule. <em>swipes don't matter.</em>
               </h2>
               <p className="rmy-body">
                 you pick the interval — every minute, every hour, every day.
@@ -544,7 +544,7 @@ export default function RemindYu() {
                 exist here.
               </p>
               <p className="rmy-body">
-                the only way out is to <strong>tap done.</strong> until then,
+                the only way out is to tap done. until then,
                 it keeps coming back at exactly the rate you asked for.
               </p>
             </div>
@@ -562,7 +562,7 @@ export default function RemindYu() {
             <div className="rmy-chain__copy">
               <h2>one done. the next fires.</h2>
               <p className="rmy-body">
-                a reminder can be <strong>linked</strong> to another — firing a
+                a reminder can be linked to another — firing a
                 set number of minutes before, during, or after the first is
                 marked done. routines, without the spreadsheet.
               </p>
@@ -587,7 +587,7 @@ export default function RemindYu() {
               <p className="rmy-body">
                 remind.yu does not request the internet permission. it is
                 technically incapable of sending data anywhere — no analytics,
-                no telemetry, no ad ids. these are not vibes. these are receipts.
+                no telemetry, no ad ids.
               </p>
               <a className="rmy-cta" href="/remind.yu/privacy" style={{ marginTop: "1rem" }}>
                 <span className="rmy-cta__label">read the privacy policy</span>

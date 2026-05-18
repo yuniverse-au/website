@@ -665,7 +665,8 @@
 }
 
 .rmy-chain__node.is-done .rmy-chain__check {
-  background: currentColor;
+  background: var(--rmy-on);
+  border-color: var(--rmy-on);
   color: var(--rmy-bg);
 }
 
