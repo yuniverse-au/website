@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/gen-og-pages.mjs",
+    "og:card": "node scripts/gen-og-card.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
-    "predeploy": "npm run build && powershell -Command \"Copy-Item dist/index.html dist/404.html\"",
+    "predeploy": "npm run build",
     "deploy": "gh-pages -d dist --no-history"
   },
   "dependencies": {

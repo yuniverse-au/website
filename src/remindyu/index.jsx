@@ -273,6 +273,12 @@ export default function RemindYu() {
   const [showWordmark, setShowWordmark]   = useState(false);
   const [ditherMounted, setDitherMounted] = useState(false);
   const [ditherCovered, setDitherCovered] = useState(true);
+  const [topbarIn, setTopbarIn]           = useState(false);
+  const [reducedMotion] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+  );
 
   /* Dither intro animation — preserved from the prior page. Same
      resting "paper" pattern, same bloom timing. */
@@ -292,7 +298,6 @@ export default function RemindYu() {
   const ledeRef    = useRef(null);
   const subRef     = useRef(null);
   const ctaRef     = useRef(null);
-  const topbarRef  = useRef(null);
   const stageRef   = useRef(null);
 
   /* Opt into the intro fade-in only if JS reaches this point AND the
@@ -316,17 +321,20 @@ export default function RemindYu() {
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
     /* Reduced motion: skip the bloom + body/stage fade entirely.
-       Settle the dither at its resting state, drop the wordmark in
-       immediately, hide the transitional caption, and leave every
-       other element at its CSS default (visible). */
+       Mount the dither at its resting state (animation disabled via
+       the disableAnimation prop), drop the wordmark in immediately,
+       hide the transitional caption, and leave every other element
+       at its CSS default (visible). */
     if (reduced) {
       setShowWordmark(true);
       setAnimatedColorNum(REST_COLOR_NUM);
       setAnimatedContrast(REST_CONTRAST);
       introSettledRef.current = true;
+      setDitherMounted(true);
+      setDitherCovered(false);
+      setTopbarIn(true);
       if (innerBgRef.current) innerBgRef.current.style.opacity = "1";
       if (captionRef.current) captionRef.current.style.display = "none";
-      if (topbarRef.current) topbarRef.current.classList.add("is-in");
       return;
     }
 
@@ -353,6 +361,10 @@ export default function RemindYu() {
     let rafId;
 
     const wordmarkTimer = setTimeout(() => setShowWordmark(true), wordmarkAtMs);
+    /* Topbar reveal runs on a timer, not the rAF loop: timers still fire
+       in background/occluded tabs where requestAnimationFrame is fully
+       suspended, so the bar can't get stuck hidden behind data-rmy-intro. */
+    const topbarTimer = setTimeout(() => setTopbarIn(true), bodyInStartMs);
 
     const lerp = (a, b, t) => a + (b - a) * t;
     const clamp01 = (t) => Math.max(0, Math.min(1, t));
@@ -404,9 +416,6 @@ export default function RemindYu() {
 
       const stageOp = clamp01((elapsed - stageInStartMs) / (stageInEndMs - stageInStartMs));
       if (stageRef.current) stageRef.current.style.opacity = stageOp;
-      if (topbarRef.current) {
-        topbarRef.current.classList.toggle("is-in", bodyOp > 0);
-      }
 
       if (elapsed < totalMs) rafId = requestAnimationFrame(animate);
     };
@@ -424,6 +433,7 @@ export default function RemindYu() {
       cancelAnimationFrame(mountFrame1);
       cancelAnimationFrame(mountFrame2);
       clearTimeout(wordmarkTimer);
+      clearTimeout(topbarTimer);
       clearTimeout(uncoverTimer);
     };
   }, []);
@@ -461,7 +471,7 @@ export default function RemindYu() {
   return (
     <div ref={rootRef} className="rmy">
       {/* ── Top bar ───────────────────────────────────────────── */}
-      <header ref={topbarRef} className="rmy-topbar">
+      <header className={`rmy-topbar${topbarIn ? " is-in" : ""}`}>
         <div className="rmy-topbar__mark">
           <a className="rmy-topbar__home" href="/" aria-label="yuniverse — home">
             <LogoSvg className="rmy-topbar__yuni" ariaHidden />
@@ -494,6 +504,7 @@ export default function RemindYu() {
               waveAmplitude={0.3}
               waveFrequency={0.8}
               waveSpeed={0.04}
+              disableAnimation={reducedMotion}
               enableMouseInteraction={false}
               pixelSize={2}
               blackLevel={REST_BLACK_LEVEL}

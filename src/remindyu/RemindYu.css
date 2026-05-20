@@ -921,6 +921,3 @@
   .rmy-topbar__live { display: none; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .rmy-dither { display: none; }
-}
