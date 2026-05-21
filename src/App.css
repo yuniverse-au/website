@@ -285,7 +285,7 @@ h1, h2, h3 {
   transition: color 1s ease;
 }
 
-.app[data-theme="dark"] .small-message {
+.app[data-theme="paper"] .small-message {
   color: #c4c4c4;
 }
 
