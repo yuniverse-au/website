@@ -1,0 +1,25 @@
+{
+  "hash": "89100dcd",
+  "configHash": "c9c2dffa",
+  "lockfileHash": "ccaa224f",
+  "browserHash": "03c80986",
+  "optimized": {
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "036848cd",
+      "needsInterop": true
+    },
+    "gsap": {
+      "src": "../../node_modules/gsap/index.js",
+      "file": "gsap.js",
+      "fileHash": "37ec6c96",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "chunk-BUSYA2B4": {
+      "file": "chunk-BUSYA2B4.js"
+    }
+  }
+}
