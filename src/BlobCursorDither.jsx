@@ -77,7 +77,11 @@ function createBlobDitherGL(canvas) {
     antialias: false,
     depth: false,
     stencil: false,
-    desynchronized: true,
+    // The render loop intentionally skips drawing on idle/settled frames.
+    // Without preserveDrawingBuffer the browser clears the buffer after each
+    // composite, so skipped frames would show an empty canvas — a rapid
+    // flicker as the loop flips in and out of the "settled" state.
+    preserveDrawingBuffer: true,
     powerPreference: "high-performance"
   });
   if (!gl) return null;

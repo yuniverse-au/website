@@ -167,8 +167,8 @@ function LiveNagDemo() {
 }
 
 /* ── 02: a linked-reminder chain. each node cycles through
-   waiting (pie countdown in the check circle) → firing (dark,
-   vibrating) → done (checked, faded). loops on hold. */
+   waiting (pie countdown in the check circle) > firing (dark,
+   vibrating) > done (checked, faded). loops on hold. */
 function LinkedChainDemo() {
   const FIRING_MS    = 1500;
   const WAITING_MS   = 3000;

@@ -6,6 +6,7 @@ import RemindYu from "./remindyu";
 import Privacy from "./remindyu/privacy";
 import Terms from "./remindyu/terms";
 import LogoSvg from "./LogoSvg";
+import SocialLinks from "./SocialLinks";
 import "./App.css";
 
 export default function App() {
@@ -536,6 +537,8 @@ export default function App() {
         <span className="theme-toggle__hint" aria-hidden="true">t</span>
         <span className="theme-toggle__circle" aria-hidden="true" />
       </button>
+
+      <SocialLinks />
     </div>
   );
 }
